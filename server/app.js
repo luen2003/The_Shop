@@ -207,7 +207,7 @@ const removeUserBySocketId = (socketId) => {
 };
 
 io.on('connection', (socket) => {
-  console.log('🔌 Socket connected:', socket.id);
+  console.log('Socket connected:', socket.id);
 
   // ===== ADD USER =====
   socket.on('addUser', (userId) => {

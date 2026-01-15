@@ -45,19 +45,29 @@ const HomeScreen = () => {
   }, [dispatch, keyword, pageNumber, minPrice, maxPrice, sort])
 
   // Xử lý submit form filter: cập nhật URL query param
-  const submitHandler = (e) => {
-    e.preventDefault()
+  // const submitHandler = (e) => {
+  //   e.preventDefault()
 
-    // Tạo URL mới có query param filter
-    const params = new URLSearchParams()
-    if (minPrice) params.set('minPrice', minPrice)
-    if (maxPrice) params.set('maxPrice', maxPrice)
-    if (sort) params.set('sort', sort)
+  //   const params = new URLSearchParams()
+  //   if (minPrice) params.set('minPrice', minPrice)
+  //   if (maxPrice) params.set('maxPrice', maxPrice)
+  //   if (sort) params.set('sort', sort)
 
-    // Nếu có keyword hoặc pageNumber, giữ lại
-    const basePath = keyword ? `/search/${keyword}/${pageNumber}` : `/`
-    navigate(`${basePath}?${params.toString()}`)
-  }
+  //   const basePath = keyword ? `/search/${keyword}/${pageNumber}` : `/`
+  //   navigate(`${basePath}?${params.toString()}`)
+  // }
+const submitHandler = (e) => {
+  e.preventDefault()
+
+  const params = new URLSearchParams()
+
+  if (minPrice !== '') params.set('minPrice', Number(minPrice))
+  if (maxPrice !== '') params.set('maxPrice', Number(maxPrice))
+  if (sort) params.set('sort', sort)
+
+  const basePath = keyword ? `/search/${keyword}/${pageNumber}` : `/`
+  navigate(`${basePath}?${params.toString()}`)
+}
 
   return (
     <>

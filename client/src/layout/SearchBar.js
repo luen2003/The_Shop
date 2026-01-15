@@ -16,7 +16,7 @@ const SearchBar = () => {
   }
 
   return (
-    <Container className='mb-3 mt-3'>
+    <Container className='mb-5 mt-5'>
       <Form onSubmit={submitHandler} className='d-flex'>
         <FormControl
           type='text'

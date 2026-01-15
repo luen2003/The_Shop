@@ -1,47 +1,46 @@
 import asyncHandler from 'express-async-handler'
+import mongoose from 'mongoose'
 import Product from '../models/productModel.js'
 
-// @desc    Fetch all products
+// @desc    Fetch all products (filter + sort + paginate)
 // @route   GET /api/products
 // @access  Public
-// getProducts controller
 const getProducts = asyncHandler(async (req, res) => {
   const pageSize = 10
   const page = Number(req.query.pageNumber) || 1
 
-  // Keyword search (case-insensitive)
+  // Search by name
   const keyword = req.query.keyword
-    ? {
-      name: {
-        $regex: req.query.keyword,
-        $options: 'i',
-      },
-    }
+    ? { name: { $regex: req.query.keyword, $options: 'i' } }
     : {}
 
-  // Filter theo userId nếu có
-  const userFilter = req.query.userId ? { user: req.query.userId } : {}
+  // Filter by user (only if ObjectId valid)
+  const userFilter =
+    req.query.userId && mongoose.Types.ObjectId.isValid(req.query.userId)
+      ? { user: req.query.userId }
+      : {}
 
-  const minPrice = req.query.minPrice ? Number(req.query.minPrice) : 0
-  const maxPrice = req.query.maxPrice ? Number(req.query.maxPrice) : Infinity
-  const priceFilter = {
-    price: { $gte: minPrice, $lte: maxPrice },
+  // Price filter (safe NaN handling)
+  const minPrice = Number(req.query.minPrice)
+  const maxPrice = Number(req.query.maxPrice)
+
+  const priceFilter = {}
+  if (!isNaN(minPrice)) priceFilter.$gte = minPrice
+  if (!isNaN(maxPrice)) priceFilter.$lte = maxPrice
+
+  // Sort
+  let sortBy = { updatedAt: -1 }
+  if (req.query.sort === 'price_asc') sortBy = { price: 1 }
+  if (req.query.sort === 'price_desc') sortBy = { price: -1 }
+  if (req.query.sort === 'name_asc') sortBy = { name: 1 }
+  if (req.query.sort === 'name_desc') sortBy = { name: -1 }
+
+  // Final filters
+  const filters = {
+    ...keyword,
+    ...userFilter,
+    ...(Object.keys(priceFilter).length && { price: priceFilter }),
   }
-
-  let sortBy = { updatedAt: -1 } 
-
-  if (req.query.sort === 'price_asc') {
-    sortBy = { price: 1 }
-  } else if (req.query.sort === 'price_desc') {
-    sortBy = { price: -1 }
-  } else if (req.query.sort === 'name_asc') {
-    sortBy = { name: 1 }
-  } else if (req.query.sort === 'name_desc') {
-    sortBy = { name: -1 }
-  }
-
-
-  const filters = { ...keyword, ...userFilter, ...priceFilter }
 
   const count = await Product.countDocuments(filters)
 
@@ -50,12 +49,12 @@ const getProducts = asyncHandler(async (req, res) => {
     .skip(pageSize * (page - 1))
     .sort(sortBy)
 
-  res.json({ products, page, pages: Math.ceil(count / pageSize) })
+  res.json({
+    products,
+    page,
+    pages: Math.ceil(count / pageSize),
+  })
 })
-
-
-
-
 
 // @desc    Fetch single product
 // @route   GET /api/products/:id
@@ -63,30 +62,30 @@ const getProducts = asyncHandler(async (req, res) => {
 const getProductById = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id).populate('user', 'name')
 
-  if (product) {
-    res.json(product)
-  } else {
+  if (!product) {
     res.status(404)
     throw new Error('Product not found')
   }
+
+  res.json(product)
 })
 
-// @desc    Delete a product
+// @desc    Delete product
 // @route   DELETE /api/products/:id
 // @access  Private/Admin
 const deleteProduct = asyncHandler(async (req, res) => {
   const product = await Product.findById(req.params.id)
 
-  if (product) {
-    await product.remove()
-    res.json({ message: 'Product removed' })
-  } else {
+  if (!product) {
     res.status(404)
     throw new Error('Product not found')
   }
+
+  await product.deleteOne()
+  res.json({ message: 'Product removed' })
 })
 
-// @desc    Create a product
+// @desc    Create product
 // @route   POST /api/products
 // @access  Private/Admin
 const createProduct = asyncHandler(async (req, res) => {
@@ -106,7 +105,7 @@ const createProduct = asyncHandler(async (req, res) => {
   res.status(201).json(createdProduct)
 })
 
-// @desc    Update a product
+// @desc    Update product
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 const updateProduct = asyncHandler(async (req, res) => {
@@ -122,24 +121,24 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   const product = await Product.findById(req.params.id)
 
-  if (product) {
-    product.name = name
-    product.price = price
-    product.description = description
-    product.images = images || product.images;
-    product.brand = brand
-    product.category = category
-    product.countInStock = countInStock
-
-    const updatedProduct = await product.save()
-    res.json(updatedProduct)
-  } else {
+  if (!product) {
     res.status(404)
     throw new Error('Product not found')
   }
+
+  product.name = name
+  product.price = price
+  product.description = description
+  product.images = images || product.images
+  product.brand = brand
+  product.category = category
+  product.countInStock = countInStock
+
+  const updatedProduct = await product.save()
+  res.json(updatedProduct)
 })
 
-// @desc    Create new review
+// @desc    Create review
 // @route   POST /api/products/:id/reviews
 // @access  Private
 const createProductReview = asyncHandler(async (req, res) => {
@@ -147,59 +146,46 @@ const createProductReview = asyncHandler(async (req, res) => {
 
   const product = await Product.findById(req.params.id)
 
-  if (product) {
-    const alreadyReviewed = product.reviews.find(
-      (r) => r.user.toString() === req.user._id.toString()
-    )
-
-    if (alreadyReviewed) {
-      res.status(400)
-      throw new Error('Product already reviewed')
-    }
-
-    const review = {
-      name: req.user.name,
-      rating: Number(rating),
-      comment,
-      user: req.user._id,
-    }
-
-    product.reviews.push(review)
-
-    product.numReviews = product.reviews.length
-
-    product.rating =
-      product.reviews.reduce((acc, item) => item.rating + acc, 0) /
-      product.reviews.length
-
-    await product.save()
-    res.status(201).json({ message: 'Review added' })
-  } else {
+  if (!product) {
     res.status(404)
     throw new Error('Product not found')
   }
+
+  const alreadyReviewed = product.reviews.find(
+    (r) => r.user.toString() === req.user._id.toString()
+  )
+
+  if (alreadyReviewed) {
+    res.status(400)
+    throw new Error('Product already reviewed')
+  }
+
+  product.reviews.push({
+    name: req.user.name,
+    rating: Number(rating),
+    comment,
+    user: req.user._id,
+  })
+
+  product.numReviews = product.reviews.length
+  product.rating =
+    product.reviews.reduce((acc, item) => acc + item.rating, 0) /
+    product.reviews.length
+
+  await product.save()
+  res.status(201).json({ message: 'Review added' })
 })
 
-// @desc    Get top rated products
+// @desc    Top rated products
 // @route   GET /api/products/top
 // @access  Public
 const getTopProducts = asyncHandler(async (req, res) => {
-  const products = await Product.find({}).sort({ rating: -1 }).limit(3)
+  const products = await Product.find({})
+    .sort({ rating: -1 })
+    .limit(3)
 
   res.json(products)
 })
-
-const getAllProducts = asyncHandler(async (req, res) => {
-  try {
-    const products = await Product.find();
-    res.json({ products });
-  } catch (error) {
-    console.error('Error fetching all products:', error);
-    res.status(500).json({ message: 'Server error, unable to fetch products' });
-  }
-});
-
-
 
 export {
   getProducts,
@@ -209,5 +195,4 @@ export {
   updateProduct,
   createProductReview,
   getTopProducts,
-  getAllProducts
 }

@@ -71,39 +71,41 @@ const App = () => {
 
         <main className="py-3 mt-5">
           <Routes>
-            <Route path="/" element={<HomeScreen />} />
-            <Route path="/product/:id" element={<ProductScreen />} />
-            <Route path="/cart/:id?" element={<CartScreen />} />
-            <Route path="/login" element={<LoginScreen />} />
-            <Route path="/register" element={<RegisterScreen />} />
-            <Route path="/profile" element={<ProfileScreen />} />
+            <Route path="/order/:id" element={<OrderScreen />} />
             <Route path="/shipping" element={<ShippingScreen />} />
             <Route path="/payment" element={<PaymentScreen />} />
             <Route path="/placeorder" element={<PlaceOrderScreen />} />
-            <Route path="/order/:id" element={<OrderScreen />} />
-
-            <Route path="/orders" element={<BuyOrdersScreen />} />
-            <Route path="/seller/orders" element={<SellOrdersScreen />} />
-
+            <Route path="/login" element={<LoginScreen />} />
+            <Route path="/register" element={<RegisterScreen />} />
+            <Route path="/profile" element={<ProfileScreen />} />
+            <Route path="/product/:id" element={<ProductScreen />} />
+            <Route path="/cart/:id?" element={<CartScreen />} />
+            <Route path="/admin/userlist" element={<UserListScreen />} />
+            <Route path="/admin/user/:id/edit" element={<UserEditScreen />} />
             <Route path="/seller/products" element={<ProductListScreen />} />
             <Route path="/seller/products/:pageNumber" element={<ProductListScreen />} />
             <Route path="/seller/products/:id/edit" element={<ProductEditScreen />} />
-
-            <Route path="/admin/userlist" element={<UserListScreen />} />
-            <Route path="/admin/user/:id/edit" element={<UserEditScreen />} />
             <Route path="/admin/orderlist" element={<OrderListScreen />} />
+            <Route path="/search/:keyword" element={<HomeScreen />} />
+            <Route path="/search/:keyword/page/:pageNumber" element={<HomeScreen />} />
+            <Route path="/" element={<HomeScreen />} />
+            <Route path="/orders" element={<BuyOrdersScreen />} />
+            <Route path="/seller/orders" element={<SellOrdersScreen />} />
             <Route path="/admin/productlist" element={<AdminProductList />} />
-
-            <Route path="/discounts" element={<DiscountListScreen />} />
             <Route path="/chatbot" element={<Chatbot />} />
+            <Route path="/search/:keyword/:pageNumber" element={<HomeScreen />} />
 
+            <Route path='/page/:pageNumber' element={<HomeScreen />} exact />
+            
+            {/* Redirect to /login if the user is not logged in */}
             <Route
               path="/chat"
               element={userInfo ? <ChatLayout /> : <Navigate to="/login" />}
             />
+            <Route path='/discounts' element={<DiscountListScreen />} />
+
           </Routes>
         </main>
-
         <Footer />
       </Router>
     </AuthProvider>

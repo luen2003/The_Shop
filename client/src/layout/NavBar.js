@@ -166,11 +166,10 @@ export const NavBar = () => {
               </Nav.Link>
             </LinkContainer>
 
-            <LinkContainer to="/chatbot">
+            {/* <LinkContainer to="/chatbot">
               <Nav.Link>
-                <i className="fas fa-robot"></i> Chatbot
-              </Nav.Link>
-            </LinkContainer>
+                  <i className="fas fa-message"></i> Chatbot              </Nav.Link>
+            </LinkContainer> */}
 
             {/* CART */}
             <LinkContainer to="/cart">

@@ -3,125 +3,119 @@ import express from 'express';
 import dotenv from 'dotenv';
 import colors from 'colors';
 import morgan from 'morgan';
-import { notFound, errorHandler } from './middleware/errorMiddleware.js';
-import connectDB from './config/db.js';
 import cors from 'cors';
 import { Server } from 'socket.io';
-import chatRoomRoutes from './routes/chatRoom.js';
-import chatMessageRoutes from './routes/chatMessage.js';
+import asyncHandler from 'express-async-handler';
+import { NlpManager } from 'node-nlp';
+
+import connectDB from './config/db.js';
+import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+
 import productRoutes from './routes/productRoutes.js';
 import userRoutes from './routes/userRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import uploadRoutes from './routes/uploadRoutes.js';
 import discountRoutes from './routes/discountRoutes.js';
-import { NlpManager } from 'node-nlp';
-import asyncHandler from 'express-async-handler';
+import chatRoomRoutes from './routes/chatRoom.js';
+import chatMessageRoutes from './routes/chatMessage.js';
+import notificationRoutes from './routes/notificationRoutes.js';
+
 import Product from './models/productModel.js';
 import User from './models/userModel.js';
 import Discount from './models/discountModel.js';
 
 dotenv.config();
-
-// Connect to the database
 connectDB();
 
 const app = express();
 
-// Use morgan for logging in development mode
+// ================= MIDDLEWARE =================
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Parse incoming JSON requests
 app.use(express.json());
-
-// Enable CORS
 app.use(cors());
 
-// API routes
+// ================= ROUTES =================
 app.use('/api/products', productRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/room', chatRoomRoutes);
 app.use('/api/message', chatMessageRoutes);
-app.use('/api/discounts', discountRoutes);  // Ensure this is correctly configured
+app.use('/api/discounts', discountRoutes);
+app.use('/api/notifications', notificationRoutes);
 
-// Huấn luyện chatbot với node-nlp (Chỉ dùng Tiếng Việt)
+// ================= CHATBOT =================
 const manager = new NlpManager({ languages: ['vi'] });
 
-// Function to train chatbot
 const trainChatbot = async () => {
-  // Lấy dữ liệu từ MongoDB để huấn luyện chatbot
   const products = await Product.find();
   const discounts = await Discount.find();
   const users = await User.find();
 
-  // Huấn luyện chatbot với dữ liệu sản phẩm
-  products.forEach(product => {
-    manager.addDocument('vi', `Sản phẩm ${product.name} là gì?`, 'product.info');
-    manager.addAnswer('vi', 'product.info', `${product.name}: ${product.description}, Giá: ${product.price} VNĐ`);
+  products.forEach((p) => {
+    manager.addDocument('vi', `Sản phẩm ${p.name} là gì`, 'product.info');
+    manager.addAnswer(
+      'vi',
+      'product.info',
+      `${p.name}: ${p.description}, Giá ${p.price} VNĐ`
+    );
   });
 
-  // Huấn luyện chatbot với dữ liệu mã giảm giá
-  discounts.forEach(discount => {
-    manager.addDocument('vi', `Hãy cho tôi biết về mã giảm giá ${discount.code}`, 'discount.info');
-    manager.addAnswer('vi', 'discount.info', `${discount.code}: ${discount.description}`);
+  discounts.forEach((d) => {
+    manager.addDocument('vi', `Mã giảm giá ${d.code}`, 'discount.info');
+    manager.addAnswer('vi', 'discount.info', d.description);
   });
 
-  // Huấn luyện chatbot với dữ liệu người dùng
-  users.forEach(user => {
-    manager.addDocument('vi', `Ai là ${user.name}?`, 'user.info');
-    manager.addAnswer('vi', 'user.info', `${user.name}: ${user.email}`);
+  users.forEach((u) => {
+    manager.addDocument('vi', `Ai là ${u.name}`, 'user.info');
+    manager.addAnswer('vi', 'user.info', u.email);
   });
 
-  // Huấn luyện mô hình
-  console.log('Training chatbot...');
   await manager.train();
   manager.save();
-  console.log('Training complete!');
 };
 
-// API huấn luyện lại chatbot
-app.post('/api/train', asyncHandler(async (req, res) => {
-  await trainChatbot();
-  res.json({ message: 'Chatbot is trained successfully!' });
-}));
+app.post(
+  '/api/train',
+  asyncHandler(async (req, res) => {
+    await trainChatbot();
+    res.json({ message: 'Chatbot trained successfully' });
+  })
+);
 
-// API để trả lời câu hỏi từ chatbot
-app.post('/api/chat', asyncHandler(async (req, res) => {
-  const { message } = req.body;
-  const response = await manager.process('vi', message); // Chỉ sử dụng tiếng Việt
-  res.json({ answer: response.answer });
-}));
+app.post(
+  '/api/chat',
+  asyncHandler(async (req, res) => {
+    const response = await manager.process('vi', req.body.message);
+    res.json({ answer: response.answer });
+  })
+);
 
-// Static file serving
+// ================= STATIC =================
 const __dirname = path.resolve();
-app.use('/client/public/images', express.static(path.join(__dirname, '/client/public/images')));
 app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
 
-// For production build
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '/client/build')));
-
-  // Catch-all route for React SPA
   app.get('*', (req, res) =>
     res.sendFile(path.resolve(__dirname, 'client', 'build', 'index.html'))
   );
 } else {
   app.get('/', (req, res) => {
-    res.send('API is running....');
+    res.send('API is running...');
   });
 }
 
-// Error handling middleware
+// ================= ERROR HANDLER =================
 app.use(notFound);
 app.use(errorHandler);
 
-// Start the HTTP server and Socket.IO
+// ================= SERVER =================
 const PORT = process.env.PORT || 5000;
 
-// Create the HTTP server to pass to Socket.IO
 const server = app.listen(
   PORT,
   console.log(
@@ -129,57 +123,137 @@ const server = app.listen(
   )
 );
 
-// Set up Socket.IO
+// // ================= SOCKET.IO =================
+// const io = new Server(server, {
+//   cors: {
+//     origin: 'http://localhost:3000',
+//     credentials: true,
+//   },
+// });
+// global.io = io;
+
+// global.onlineUsers = new Map();
+
+// const removeUserBySocketId = (socketId) => {
+//   for (let [userId, sId] of onlineUsers.entries()) {
+//     if (sId === socketId) {
+//       onlineUsers.delete(userId);
+//       break;
+//     }
+//   }
+// };
+
+// io.on('connection', (socket) => {
+//   console.log('Socket connected:', socket.id);
+
+//   socket.on('addUser', (userId) => {
+//     if (!userId) return;
+//     onlineUsers.set(userId.toString(), socket.id);
+//     io.emit('getUsers', Array.from(onlineUsers.keys()));
+//   });
+
+//   socket.on('joinRoom', (roomId) => {
+//     if (roomId) socket.join(roomId);
+//   });
+
+//   socket.on('sendMessage', ({ senderId, receiverId, message }) => {
+//     const receiverSocketId = onlineUsers.get(receiverId?.toString());
+//     if (receiverSocketId) {
+//       io.to(receiverSocketId).emit('getMessage', { senderId, message });
+//     }
+//   });
+
+//   socket.on('sendMessageInRoom', ({ chatRoomId, senderId, message }) => {
+//     if (chatRoomId) {
+//       io.to(chatRoomId).emit('getMessage', {
+//         senderId,
+//         message,
+//         chatRoomId,
+//       });
+//     }
+//   });
+
+//   socket.on('sendNotification', ({ userId, notification }) => {
+//     const socketId = onlineUsers.get(userId?.toString());
+//     if (socketId) {
+//       io.to(socketId).emit('newNotification', notification);
+//     }
+//   });
+
+//   socket.on('disconnect', () => {
+//     removeUserBySocketId(socket.id);
+//     io.emit('getUsers', Array.from(onlineUsers.keys()));
+//     console.log('Socket disconnected:', socket.id);
+//   });
+// });
+// ================= SOCKET.IO =================
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000",  // Adjust this if needed
+    origin: 'http://localhost:3000',
     credentials: true,
   },
 });
 
+global.io = io;
 global.onlineUsers = new Map();
 
-// Function to get the key (userId) based on the socketId
-const getKey = (map, val) => {
-  for (let [key, value] of map.entries()) {
-    if (value === val) return key;
+const removeUserBySocketId = (socketId) => {
+  for (let [userId, sId] of onlineUsers.entries()) {
+    if (sId === socketId) {
+      onlineUsers.delete(userId);
+      break;
+    }
   }
 };
 
-// Socket.IO connection event
-io.on("connection", (socket) => {
-  global.chatSocket = socket;
+io.on('connection', (socket) => {
+  console.log('🔌 Socket connected:', socket.id);
 
-  // Add a user to the onlineUsers map
-  socket.on("addUser", (userId) => {
-    onlineUsers.set(userId, socket.id);
-    socket.emit("getUsers", Array.from(onlineUsers));
+  // ===== ADD USER =====
+  socket.on('addUser', (userId) => {
+    if (!userId) return;
+    onlineUsers.set(userId.toString(), socket.id);
+    io.emit('getUsers', Array.from(onlineUsers.keys()));
   });
 
-  // Join a chat room
-  socket.on("joinRoom", (roomId) => {
-    socket.join(roomId);
+  // ===== JOIN ROOM =====
+  socket.on('joinRoom', (roomId) => {
+    if (roomId) socket.join(roomId);
   });
 
-  // Send a direct message to the receiver
-  socket.on("sendMessage", ({ senderId, receiverId, message }) => {
-    const sendUserSocket = onlineUsers.get(receiverId);
-    if (sendUserSocket) {
-      socket.to(sendUserSocket).emit("getMessage", {
+  // ===== PRIVATE MESSAGE =====
+  socket.on('sendMessage', ({ senderId, receiverId, message }) => {
+    const receiverSocketId = onlineUsers.get(receiverId?.toString());
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('getMessage', { senderId, message });
+    }
+  });
+
+  // ===== ROOM MESSAGE =====
+  socket.on('sendMessageInRoom', ({ chatRoomId, senderId, message }) => {
+    if (chatRoomId) {
+      io.to(chatRoomId).emit('getMessage', {
         senderId,
         message,
+        chatRoomId,
       });
     }
   });
 
-  // Send message to everyone in the chat room
-  socket.on("sendMessageInRoom", ({ chatRoomId, senderId, message }) => {
-    io.to(chatRoomId).emit("getMessage", { senderId, message, chatRoomId });
+  // ===== NOTIFICATION REALTIME =====
+  socket.on('sendNotification', ({ userId, notification }) => {
+    if (!userId || !notification) return;
+
+    const socketId = onlineUsers.get(userId.toString());
+    if (socketId) {
+      io.to(socketId).emit('newNotification', notification);
+    }
   });
 
-  // Handle disconnect events
-  socket.on("disconnect", () => {
-    onlineUsers.delete(getKey(onlineUsers, socket.id));
-    socket.emit("getUsers", Array.from(onlineUsers));
+  // ===== DISCONNECT =====
+  socket.on('disconnect', () => {
+    removeUserBySocketId(socket.id);
+    io.emit('getUsers', Array.from(onlineUsers.keys()));
+    console.log('Socket disconnected:', socket.id);
   });
 });

@@ -1,10 +1,10 @@
-import asyncHandler from 'express-async-handler'
-import Order from '../models/orderModel.js'
-import Product from '../models/productModel.js'
+import asyncHandler from 'express-async-handler';
+import Order from '../models/orderModel.js';
+import Product from '../models/productModel.js';
+import Notification from '../models/notificationModel.js';
 
-// @desc    Create new order
+// ================= CREATE ORDER =================
 // @route   POST /api/orders
-// @access  Private
 const addOrderItems = asyncHandler(async (req, res) => {
   const {
     orderItems,
@@ -14,35 +14,35 @@ const addOrderItems = asyncHandler(async (req, res) => {
     taxPrice,
     shippingPrice,
     totalPrice,
-  } = req.body
+  } = req.body;
 
   if (!orderItems || orderItems.length === 0) {
-    res.status(400)
-    throw new Error('No order items')
+    res.status(400);
+    throw new Error('No order items');
   }
 
-  const updatedOrderItems = []
+  const updatedOrderItems = [];
+  const sellerIds = new Set();
 
   for (let item of orderItems) {
-    const product = await Product.findById(item.product)
+    const product = await Product.findById(item.product);
 
     if (!product) {
-      res.status(404)
-      throw new Error(`Product not found: ${item.name}`)
+      res.status(404);
+      throw new Error(`Product not found`);
     }
 
     if (product.countInStock < item.qty) {
-      res.status(400)
-      throw new Error(`Not enough stock for product: ${product.name}`)
+      res.status(400);
+      throw new Error(`Not enough stock for ${product.name}`);
     }
 
-    // Reduce stock
-    product.countInStock -= item.qty
-    await product.save()
+    product.countInStock -= item.qty;
+    await product.save();
 
-    // Attach seller info
-    item.seller = product.user
-    updatedOrderItems.push(item)
+    item.seller = product.user;
+    sellerIds.add(product.user.toString());
+    updatedOrderItems.push(item);
   }
 
   const order = new Order({
@@ -54,135 +54,179 @@ const addOrderItems = asyncHandler(async (req, res) => {
     taxPrice,
     shippingPrice,
     totalPrice,
-  })
+  });
 
-  const createdOrder = await order.save()
-  res.status(201).json(createdOrder)
-})
+  const createdOrder = await order.save();
+  res.status(201).json(createdOrder);
 
-// @desc    Get order by ID
-// @route   GET /api/orders/:id
-// @access  Private
+  // ============ NOTIFY SELLERS ============
+  for (let sellerId of sellerIds) {
+    const notification = await Notification.create({
+      user: sellerId,
+      title: 'Đơn hàng mới',
+      message: `Bạn có đơn hàng mới #${createdOrder._id}`,
+      type: 'order_new',
+      link: `/order/${createdOrder._id}`,
+    });
+
+const sellerSocket = global.onlineUsers.get(sellerId.toString());
+if (sellerSocket) {
+  global.io.to(sellerSocket).emit('newNotification', notification);
+}
+    // const socketId = global.onlineUsers?.get(sellerId);
+    // if (socketId) {
+    //   global.io.to(socketId).emit('newNotification', notification);
+    // }
+  }
+});
+
+// ================= GET ORDER =================
 const getOrderById = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id)
-    .populate('user', '_id name email') // Populate user details (customer)
+    .populate('user', '_id name email')
     .populate({
-      path: 'orderItems.seller', // Populate seller for each order item
-      select: 'name', // Only select the seller's name
-    })
+      path: 'orderItems.seller',
+      select: 'name',
+    });
 
-  if (order) {
-    res.json(order)
-  } else {
-    res.status(404)
-    throw new Error('Order not found')
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
   }
-})
 
+  res.json(order);
+});
+
+// ================= PAID =================
 const updateOrderToPaid = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id)
+  const order = await Order.findById(req.params.id);
 
-  if (order) {
-    // Check access rights (Admin or Seller)
-    if (!(req.user.isAdmin || order.orderItems.some(item => item.seller.toString() === req.user._id.toString()))) {
-      res.status(403)
-      throw new Error('Not authorized to mark this order as paid')
-    }
-
-    // Update order status to paid
-    order.isPaid = true
-    order.paidAt = Date.now()  // Update the payment timestamp
-
-    // Save the updated order
-    try {
-      const updatedOrder = await order.save()
-      res.json(updatedOrder)
-    } catch (error) {
-      console.error('Error saving the updated order:', error)
-      res.status(500)
-      throw new Error('Unable to update payment status for the order')
-    }
-  } else {
-    res.status(404)
-    throw new Error('Order not found')
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
   }
-})
 
+  if (
+    !(
+      req.user.isAdmin ||
+      order.orderItems.some(
+        (item) => item.seller.toString() === req.user._id.toString()
+      )
+    )
+  ) {
+    res.status(403);
+    throw new Error('Not authorized');
+  }
 
-// @desc    Update order to delivered
-// @route   PUT /api/orders/:id/deliver
-// @access  Private
+  order.isPaid = true;
+  order.paidAt = Date.now();
+
+  const updatedOrder = await order.save();
+  res.json(updatedOrder);
+
+  // ============ NOTIFY BUYER ============
+  const notification = await Notification.create({
+    user: order.user,
+    title: 'Đơn hàng đã thanh toán',
+    message: `Đơn hàng #${order._id} đã được thanh toán`,
+    type: 'order_paid',
+    link: `/order/${order._id}`,
+  });
+const buyerSocket = global.onlineUsers.get(order.user.toString());
+if (buyerSocket) {
+  global.io.to(buyerSocket).emit('newNotification', notification);
+}
+  // const socketId = global.onlineUsers?.get(order.user.toString());
+  // if (socketId) {
+  //   global.io.to(socketId).emit('newNotification', notification);
+  // }
+});
+
+// ================= DELIVERED =================
 const updateOrderToDelivered = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id)
+  const order = await Order.findById(req.params.id);
 
-  if (order) {
-    // Ensure user is admin or seller
-    if (!(req.user.isAdmin || order.orderItems.some(item => item.seller.toString() === req.user._id.toString()))) {
-      res.status(403)
-      throw new Error('Not authorized to mark this order as delivered')
-    }
-
-    order.isDelivered = true
-    order.deliveredAt = Date.now()
-
-    const updatedOrder = await order.save()
-
-    res.json(updatedOrder)
-  } else {
-    res.status(404)
-    throw new Error('Order not found')
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
   }
-})
-// @desc    Get all orders
-// @route   GET /api/orders
-// @access  Private/Admin
+
+  if (
+    !(
+      req.user.isAdmin ||
+      order.orderItems.some(
+        (item) => item.seller.toString() === req.user._id.toString()
+      )
+    )
+  ) {
+    res.status(403);
+    throw new Error('Not authorized');
+  }
+
+  order.isDelivered = true;
+  order.deliveredAt = Date.now();
+
+  const updatedOrder = await order.save();
+  res.json(updatedOrder);
+
+  // ============ NOTIFY BUYER ============
+  const notification = await Notification.create({
+    user: order.user,
+    title: 'Đơn hàng đã giao',
+    message: `Đơn hàng #${order._id} đã được giao thành công`,
+    type: 'order_delivered',
+    link: `/order/${order._id}`,
+  });
+
+  // const socketId = global.onlineUsers?.get(order.user.toString());
+  // if (socketId) {
+  //   global.io.to(socketId).emit('newNotification', notification);
+  // }
+  const buyerSocket = global.onlineUsers.get(order.user.toString());
+if (buyerSocket) {
+  global.io.to(buyerSocket).emit('newNotification', notification);
+}
+});
+
+// ================= GET ALL =================
 const getOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({}) 
-    .populate('user', '_id name') // Populate user details (customer)
+  const orders = await Order.find({})
+    .populate('user', '_id name')
     .populate({
-      path: 'orderItems.seller', // Populate seller for each order item
-      select: '_id', // Only select the seller's name
-    })
+      path: 'orderItems.seller',
+      select: '_id name',
+    });
 
-  res.json(orders)
-})
-
-// Get Orders for the logged-in user
-const getMyOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({ user: req.user._id })
   res.json(orders);
 });
 
-// Get orders for the logged-in seller
+// ================= MY ORDERS =================
+const getMyOrders = asyncHandler(async (req, res) => {
+  const orders = await Order.find({ user: req.user._id });
+  res.json(orders);
+});
+
+// ================= SELLER ORDERS =================
 const getMySellOrders = asyncHandler(async (req, res) => {
-  try {
-    // Ensure the user is a seller
-    if (req.user.role !== 'seller') {
-      return res.status(403).json({ message: 'Access Denied. You must be a seller to view these orders.' })
-    }
-
-    // Get all orders
-    const orders = await Order.find().populate({
-      path: 'orderItems.seller',
-      select: '_id name', 
-    });
-
-
-    // Filter orders that belong to the seller
-    const filteredOrders = orders.filter(order => 
-      order.orderItems.some(item => item.seller && item.seller._id.toString() === req.user._id.toString())
-    );
-
-
-    if (filteredOrders.length === 0) {
-      return res.status(404).json({ message: 'No orders found for this seller.' });
-    }
-
-    // Return the filtered list of orders
-    res.json(filteredOrders);
-  } catch (err) {
-    res.status(500).json({ message: 'Error fetching seller orders', error: err });
+  if (req.user.role !== 'seller') {
+    res.status(403);
+    throw new Error('Access denied');
   }
+
+  const orders = await Order.find().populate({
+    path: 'orderItems.seller',
+    select: '_id name',
+  });
+
+  const filteredOrders = orders.filter((order) =>
+    order.orderItems.some(
+      (item) =>
+        item.seller &&
+        item.seller._id.toString() === req.user._id.toString()
+    )
+  );
+
+  res.json(filteredOrders);
 });
 
 export {
@@ -193,4 +237,4 @@ export {
   getOrders,
   getMyOrders,
   getMySellOrders,
-}
+};

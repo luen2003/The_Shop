@@ -1,6 +1,7 @@
 import { createStore, combineReducers, applyMiddleware } from 'redux';
 import thunk from 'redux-thunk';
 import { composeWithDevTools } from 'redux-devtools-extension';
+import { notificationListReducer } from './reducers/notificationReducer';
 
 import {
   productListReducer,
@@ -72,6 +73,7 @@ const reducer = combineReducers({
   discount: discountReducer,
   discountList: discountListReducer,
   discountListAll: discountListAllReducer,
+  notificationList: notificationListReducer,
 });
 
 const cartItemsFromStorage = localStorage.getItem('cartItems') ? JSON.parse(localStorage.getItem('cartItems')) : [];

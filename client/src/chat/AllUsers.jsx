@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useApi } from "../services/ChatService";
 import Contact from "./Contact";
 import UserLayout from "../layouts/UserLayout";
@@ -18,140 +18,123 @@ export default function AllUsers({
   const [selectedChat, setSelectedChat] = useState();
   const [nonContacts, setNonContacts] = useState([]);
   const [contactIds, setContactIds] = useState([]);
-  const [showMembersId, setShowMembersId] = useState(null); // để bật/tắt danh sách thành viên nhóm
+  const [showMembersId, setShowMembersId] = useState(null);
 
   const { createChatRoom } = useApi();
 
-  // Lấy các user id trong chatRooms ngoại trừ currentUser (để phân biệt contact)
   useEffect(() => {
-    if (chatRooms && currentUser) {
-      const Ids = chatRooms
-        .map((chatRoom) => {
-          if (chatRoom.isGroup) {
-            return null;
-          }
-          return chatRoom.members.find((member) => member !== currentUser._id);
-        })
-        .filter(Boolean);
-      setContactIds(Ids);
-    }
+    const ids = chatRooms
+      .filter((r) => !r.isGroup)
+      .map((r) => r.members.find((m) => m !== currentUser._id));
+    setContactIds(ids);
   }, [chatRooms, currentUser]);
 
-  // Lọc ra các user không phải contact
   useEffect(() => {
-    if (users && users.length > 0 && currentUser) {
-      setNonContacts(
-        users.filter(
-          (f) => f._id !== currentUser._id && !contactIds.includes(f._id)
-        )
-      );
-    }
-  }, [contactIds, users, currentUser]);
+    setNonContacts(
+      users.filter(
+        (u) => u._id !== currentUser._id && !contactIds.includes(u._id)
+      )
+    );
+  }, [users, contactIds, currentUser]);
+
+  // 🔥 UNREAD – ÁP DỤNG CHO CẢ GROUP + CHAT ĐƠN
+  const hasUnreadMessages = (room) => {
+    if (!room.lastMessage) return false;
+    return (
+      room.lastMessage.sender !== currentUser._id &&
+      room.lastMessage.isRead === false
+    );
+  };
 
   const changeCurrentChat = (index, chat) => {
     setSelectedChat(index);
+
+    setChatRooms((prev) =>
+      prev.map((r) =>
+        r._id === chat._id
+          ? {
+              ...r,
+              lastMessage: r.lastMessage
+                ? { ...r.lastMessage, isRead: true }
+                : r.lastMessage,
+            }
+          : r
+      )
+    );
+
     changeChat(chat);
   };
 
-  // Tạo chat đơn mới
-  const handleNewChatRoom = async (user) => {
-    const members = {
-      senderId: currentUser._id,
-      receiverId: user._id,
-    };
-    const res = await createChatRoom(members);
-    setChatRooms((prev) => [...prev, res]);
-    changeChat(res);
-  };
-
-  // Lấy tên user từ id, để hiển thị tên thành viên nhóm
-  const getUserName = (userId) => {
-    const user = users.find((u) => u._id === userId);
-    return user ? user.email || user.name || "Unknown" : "Unknown";
-  };
-
   return (
-    <>
-      <ul className="overflow-auto h-[30rem]">
-        <h2 className="my-2 mb-2 ml-2 text-black font-semibold">Chats</h2>
-        <li>
-          {chatRooms?.map((chatRoom, index) => (
-            <div
-              key={chatRoom._id || index}
-              className={classNames(
-                index === selectedChat
-                  ? "bg-gray-100"
-                  : "transition duration-150 ease-in-out cursor-pointer bg-white border-b border-gray-200 hover:bg-gray-100",
-                "flex flex-col px-3 py-2 text-sm text-black"
+    <ul className="overflow-auto h-[30rem]">
+      <h2 className="m-2 font-semibold">Chats</h2>
+
+      {chatRooms.map((room, index) => (
+        <div
+          key={room._id}
+          onClick={() => changeCurrentChat(index, room)}
+          className={classNames(
+            "px-3 py-2 cursor-pointer border-b",
+            index === selectedChat ? "bg-gray-100" : "hover:bg-gray-100",
+            hasUnreadMessages(room) && "font-bold"
+          )}
+        >
+          <div className="flex justify-between">
+            <div className="flex items-center gap-2">
+              {room.isGroup && (
+                <span className="text-xs bg-blue-500 text-white px-2 rounded">
+                  Group
+                </span>
               )}
-              onClick={() => changeCurrentChat(index, chatRoom)}
-            >
-              {/* Tên group và nút view members cùng hàng */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  {chatRoom.isGroup && (
-                    <span className="text-xs bg-blue-500 text-white rounded px-2 py-0.5 font-semibold">
-                      Group
-                    </span>
-                  )}
-                  <div className="font-semibold">
-                    {chatRoom.isGroup ? chatRoom.name : (
-                      <Contact
-                        chatRoom={chatRoom}
-                        onlineUsersId={onlineUsersId}
-                        currentUser={currentUser}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Nút xem thành viên cho nhóm */}
-                {chatRoom.isGroup && (
-                  <button
-                    type="button"
-                    className="text-blue-600 text-xs underline hover:text-blue-800"
-                    onClick={(e) => {
-                      e.stopPropagation(); // tránh click lan ra cha gây đổi chat
-                      setShowMembersId(
-                        showMembersId === chatRoom._id ? null : chatRoom._id
-                      );
-                    }}
-                  >
-                    {showMembersId === chatRoom._id ? "Hide Members" : "View Members"}
-                  </button>
-                )}
-              </div>
-
-              {/* Hiển thị thành viên nhóm nếu là group và đang mở xem */}
-              {chatRoom.isGroup && showMembersId === chatRoom._id && (
-                <div className="mt-2 ml-6 text-xs text-gray-700">
-                  <div className="mb-1 font-semibold">Members:</div>
-                  <ul>
-                    {chatRoom.members
-                      .filter((id) => id !== currentUser._id)
-                      .map((memberId) => (
-                        <li key={memberId}>{getUserName(memberId)}</li>
-                      ))}
-                  </ul>
-                </div>
+              {room.isGroup ? room.name : (
+                <Contact
+                  chatRoom={room}
+                  currentUser={currentUser}
+                  onlineUsersId={onlineUsersId}
+                />
               )}
             </div>
-          ))}
-        </li>
 
-        <h2 className="my-2 mb-2 ml-2 text-black font-semibold">Other Users</h2>
-        <li>
-          {nonContacts?.map((nonContact, index) => (
-            <div
-              key={nonContact._id || index}
-              className="flex items-center px-3 py-2 text-sm bg-white border-b border-gray-200 hover:bg-gray-100 cursor-pointer text-black"
-              onClick={() => handleNewChatRoom(nonContact)}
-            >
-              <UserLayout user={nonContact} onlineUsersId={onlineUsersId} />
+            {room.isGroup && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowMembersId(
+                    showMembersId === room._id ? null : room._id
+                  );
+                }}
+                className="text-xs underline"
+              >
+                Members
+              </button>
+            )}
+          </div>
+
+          {room.isGroup && showMembersId === room._id && (
+            <div className="ml-6 mt-2 text-xs">
+              {room.members
+                .filter((m) => m !== currentUser._id)
+                .map((id) => (
+                  <div key={id}>{id}</div>
+                ))}
             </div>
-          ))}
-        </li>
-      </ul>
-    </>
+          )}
+        </div>
+      ))}
+
+      <h2 className="m-2 font-semibold">Other Users</h2>
+      {nonContacts.map((u) => (
+        <div
+          key={u._id}
+          onClick={() => createChatRoom({
+            senderId: currentUser._id,
+            receiverId: u._id,
+          })}
+          className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+        >
+          <UserLayout user={u} onlineUsersId={onlineUsersId} />
+        </div>
+      ))}
+    </ul>
   );
 }

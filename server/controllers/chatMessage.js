@@ -60,14 +60,23 @@ export const createMessage = async (req, res) => {
 };
 // Mark messages as read
 export const markMessagesAsRead = async (req, res) => {
+  const { chatRoomId } = req.params;
+  const { userId } = req.body;
+
   try {
     await ChatMessage.updateMany(
-      { chatRoomId: req.params.chatRoomId},
+      {
+        chatRoomId,
+        sender: { $ne: userId },
+        isRead: false
+      },
       { $set: { isRead: true } }
     );
-    res.status(200).json({ message: "Messages marked as read" });
-  } catch (error) {
-    res.status(500).json({ message: error.message });
+
+    res.status(200).json({ success: true });
+  } catch (err) {
+    res.status(500).json(err);
   }
 };
+
 

@@ -12,135 +12,94 @@ import axios from "axios";
 
 export default function ChatLayout() {
   const [users, setUsers] = useState([]);
-  const [filteredUsers, setFilteredUsers] = useState([]);
   const [chatRooms, setChatRooms] = useState([]);
-  const [filteredRooms, setFilteredRooms] = useState([]);
   const [currentChat, setCurrentChat] = useState(null);
   const [onlineUsersId, setOnlineUsersId] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [isContact, setIsContact] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
 
   const socket = useRef(null);
 
   const { currentUser } = useAuth();
-  const { initiateSocketConnection, getAllUsers, getChatRooms } = useApi();
+  const {
+    initiateSocketConnection,
+    getAllUsers,
+    getChatRooms,
+  } = useApi();
 
-  // ================= SOCKET CONNECT =================
+  // ================= SOCKET =================
   useEffect(() => {
     if (!currentUser?._id) return;
 
-    const connectSocket = async () => {
-      const res = await initiateSocketConnection();
-      socket.current = res;
-
-      // add user online
+    const connect = async () => {
+      socket.current = await initiateSocketConnection();
       socket.current.emit("addUser", currentUser._id);
 
-      // ✅ users = [userId, userId]
       socket.current.on("getUsers", (users) => {
-        setOnlineUsersId(users.map((id) => id.toString()));
+        setOnlineUsersId(users.map((u) => u.toString()));
+      });
+
+      socket.current.on("getMessage", (data) => {
+        setChatRooms((prev) =>
+          prev.map((room) =>
+            room._id === data.chatRoomId
+              ? {
+                  ...room,
+                  lastMessage: {
+                    sender: data.senderId,
+                    message: data.message,
+                    isRead: false,
+                    createdAt: new Date().toISOString(),
+                  },
+                }
+              : room
+          )
+        );
       });
     };
 
-    connectSocket();
+    connect();
 
     return () => {
-      if (socket.current) {
-        socket.current.off("getUsers");
-        socket.current.disconnect();
-      }
+      socket.current?.off("getUsers");
+      socket.current?.off("getMessage");
+      socket.current?.disconnect();
     };
   }, [currentUser?._id]);
 
-  // ================= FETCH CHAT ROOMS =================
+  // ================= FETCH ROOMS =================
   useEffect(() => {
     if (!currentUser?._id) return;
 
-    const fetchRooms = async () => {
-      const res = await getChatRooms(currentUser._id);
-      setChatRooms(res);
-    };
-    fetchRooms();
+    getChatRooms(currentUser._id).then(setChatRooms);
   }, [currentUser?._id]);
 
   // ================= FETCH USERS =================
   useEffect(() => {
-    const fetchUsers = async () => {
-      const res = await getAllUsers();
-      setUsers(res);
-    };
-    fetchUsers();
+    getAllUsers().then(setUsers);
   }, []);
-
-  // ================= FILTER =================
-  useEffect(() => {
-    setFilteredUsers(users);
-    setFilteredRooms(chatRooms);
-  }, [users, chatRooms]);
-
-  useEffect(() => {
-    if (isContact) {
-      setFilteredUsers([]);
-    } else {
-      setFilteredRooms([]);
-    }
-  }, [isContact]);
 
   // ================= CHANGE CHAT =================
   const handleChatChange = async (chat) => {
     setCurrentChat(chat);
+
     try {
       await axios.put(`/api/message/mark-as-read/${chat._id}`);
-    } catch (error) {
-      console.error("Error marking messages as read:", error);
-    }
-  };
+    } catch {}
 
-  // ================= SEARCH =================
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-
-    const searchedUsers = users.filter((user) =>
-      user.email?.toLowerCase().includes(query.toLowerCase())
+    // mark read UI
+    setChatRooms((prev) =>
+      prev.map((room) =>
+        room._id === chat._id
+          ? {
+              ...room,
+              lastMessage: room.lastMessage
+                ? { ...room.lastMessage, isRead: true }
+                : room.lastMessage,
+            }
+          : room
+      )
     );
-
-    const searchedUsersId = searchedUsers.map((u) => u._id);
-
-    if (chatRooms.length !== 0) {
-      chatRooms.forEach((chatRoom) => {
-        const isUserContact = chatRoom.members.some(
-          (e) => e !== currentUser._id && searchedUsersId.includes(e)
-        );
-        setIsContact(isUserContact);
-
-        isUserContact
-          ? setFilteredRooms([chatRoom])
-          : setFilteredUsers(searchedUsers);
-      });
-    } else {
-      setFilteredUsers(searchedUsers);
-    }
-  };
-
-  // ================= LEAVE GROUP =================
-  const handleLeaveGroup = async () => {
-    if (!currentChat?._id) return;
-
-    const confirmLeave = window.confirm("Are you sure you want to leave this group?");
-    if (!confirmLeave) return;
-
-    try {
-      await axios.put(`/api/room/leave/${currentChat._id}`, {
-        userId: currentUser._id,
-      });
-
-      setChatRooms(chatRooms.filter((room) => room._id !== currentChat._id));
-      setCurrentChat(null);
-    } catch (error) {
-      console.error("Error leaving group:", error);
-      alert("Failed to leave group.");
-    }
   };
 
   return (
@@ -148,23 +107,23 @@ export default function ChatLayout() {
       <Header />
 
       <div className="container mx-auto">
-        <div className="min-w-full bg-white border-x border-b border-gray-200 dark:bg-gray-900 dark:border-gray-700 rounded lg:grid lg:grid-cols-3">
+        <div className="min-w-full bg-white border lg:grid lg:grid-cols-3">
 
-          {/* ===== LEFT ===== */}
-          <div className="bg-white border-r border-gray-200 dark:bg-gray-900 dark:border-gray-700 lg:col-span-1">
-            <div className="flex justify-between items-center px-3 pt-3">
-              <SearchUsers handleSearch={handleSearch} />
+          {/* LEFT */}
+          <div className="border-r lg:col-span-1">
+            <div className="flex items-center p-3 gap-2">
+              <SearchUsers handleSearch={setSearchQuery} />
               <button
-                className="ml-2 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
                 onClick={() => setShowGroupModal(true)}
+                className="bg-blue-600 text-white px-3 py-2 rounded"
               >
-                + New Group Chat
+                + Group
               </button>
             </div>
 
             <AllUsers
-              users={searchQuery ? filteredUsers : users}
-              chatRooms={searchQuery ? filteredRooms : chatRooms}
+              users={users}
+              chatRooms={chatRooms}
               setChatRooms={setChatRooms}
               onlineUsersId={onlineUsersId}
               currentUser={currentUser}
@@ -172,30 +131,16 @@ export default function ChatLayout() {
             />
           </div>
 
-          {/* ===== RIGHT ===== */}
-          <div className="lg:col-span-2 relative">
+          {/* RIGHT */}
+          <div className="lg:col-span-2">
             {currentChat ? (
-              <>
-                {currentChat.isGroup && (
-                  <div className="absolute top-0 right-0 m-4 z-10">
-                    <button
-                      onClick={handleLeaveGroup}
-                      className="bg-red-600 text-white text-sm px-4 py-2 rounded hover:bg-red-700"
-                    >
-                      Leave Group
-                    </button>
-                  </div>
-                )}
-
-                <ChatRoom
-                  currentChat={currentChat}
-                  currentUser={currentUser}
-                  socket={socket}
-                  users={users}
-                  onlineUsersId={onlineUsersId}
-                />
-
-              </>
+              <ChatRoom
+                currentChat={currentChat}
+                currentUser={currentUser}
+                socket={socket}
+                users={users}
+                onlineUsersId={onlineUsersId}
+              />
             ) : (
               <Welcome />
             )}
@@ -208,9 +153,9 @@ export default function ChatLayout() {
           users={users}
           currentUser={currentUser}
           onClose={() => setShowGroupModal(false)}
-          onCreated={(newRoom) => {
-            setChatRooms([...chatRooms, newRoom]);
-            setCurrentChat(newRoom);
+          onCreated={(room) => {
+            setChatRooms((prev) => [...prev, room]);
+            setCurrentChat(room);
             setShowGroupModal(false);
           }}
         />

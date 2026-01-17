@@ -118,7 +118,9 @@ export const useApi = () => {
       console.error(e);
     }
   };
-
+const markMessagesAsRead = (chatRoomId, userId) => {
+  return axios.put(`/chatMessage/mark-as-read/${chatRoomId}`, { userId });
+};
 
   return {
     initiateSocketConnection,
@@ -129,7 +131,8 @@ export const useApi = () => {
     createChatRoom,
     getMessagesOfChatRoom,
     sendMessage,
-    markAllMessagesAsRead
+    markAllMessagesAsRead,
+    markMessagesAsRead
   };
 };
 

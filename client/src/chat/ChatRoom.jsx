@@ -4,58 +4,88 @@ import Message from "./Message";
 import Contact from "./Contact";
 import ChatForm from "./ChatForm";
 
-export default function ChatRoom({ currentChat, currentUser, socket, users, onlineUsersId }) {
+export default function ChatRoom({
+  currentChat,
+  currentUser,
+  socket,
+  users,
+  onlineUsersId,
+}) {
   const [messages, setMessages] = useState([]);
   const chatContainerRef = useRef(null);
-  
-  // Dùng Ref để lưu trữ roomId hiện tại, tránh việc closure của socket nhận nhầm phòng
-  const currentChatIdRef = useRef(currentChat?._id);
+
+  // lưu roomId hiện tại để socket không bị stale
+  const currentChatIdRef = useRef(null);
 
   const { getMessagesOfChatRoom, sendMessage } = useApi();
 
+  // cập nhật ref khi đổi phòng
   useEffect(() => {
-    currentChatIdRef.current = currentChat?._id;
+    currentChatIdRef.current = currentChat?._id || null;
   }, [currentChat?._id]);
 
-  // Cuộn nội bộ khung chat
+  // scroll an toàn
   const scrollToBottom = useCallback(() => {
     if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      chatContainerRef.current.scrollTop =
+        chatContainerRef.current.scrollHeight;
     }
   }, []);
 
-  // 1. Fetch tin nhắn (Chỉ chạy khi ID phòng thay đổi)
+  // 1️⃣ Fetch messages khi đổi phòng
   useEffect(() => {
+    if (!currentChat?._id) {
+      setMessages([]);
+      return;
+    }
+
     let isMounted = true;
-    const fetchData = async () => {
-      if (currentChat?._id) {
+
+    const fetchMessages = async () => {
+      try {
         const res = await getMessagesOfChatRoom(currentChat._id);
-        if (isMounted) {
-          setMessages(res);
-          // Cuộn ngay lập tức sau khi render
-          requestAnimationFrame(scrollToBottom);
-        }
+        if (!isMounted) return;
+
+        setMessages(res || []);
+
+        requestAnimationFrame(() => {
+          if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop =
+              chatContainerRef.current.scrollHeight;
+          }
+        });
+      } catch (err) {
+        console.error("Fetch messages error:", err);
       }
     };
-    fetchData();
-    return () => { isMounted = false; };
-  }, [currentChat?._id, getMessagesOfChatRoom, scrollToBottom]);
 
-  // 2. Lắng nghe Socket (Tối ưu hóa để không nháy)
+    fetchMessages();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [currentChat?._id, getMessagesOfChatRoom]);
+
+  // 2️⃣ Socket nhận tin nhắn
   useEffect(() => {
-    if (!socket.current) return;
+    if (!socket?.current) return;
 
     const handleGetMessage = (data) => {
-      // KIỂM TRA 1: Tin nhắn phải thuộc về phòng đang mở
-      // KIỂM TRA 2: Không xử lý tin nhắn của chính mình (đã add ở hàm gửi)
-      if (data.chatRoomId === currentChatIdRef.current && data.senderId !== currentUser._id) {
-        setMessages((prev) => [...prev, {
-          sender: data.senderId,
-          message: data.message,
-          createdAt: new Date().toISOString(),
-          _id: `temp-${Date.now()}` // ID tạm để React không nhầm lẫn
-        }]);
-        setTimeout(scrollToBottom, 50);
+      if (
+        data.chatRoomId === currentChatIdRef.current &&
+        data.senderId !== currentUser._id
+      ) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            _id: `temp-${Date.now()}`,
+            sender: data.senderId,
+            message: data.message,
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+
+        setTimeout(scrollToBottom, 30);
       }
     };
 
@@ -65,13 +95,15 @@ export default function ChatRoom({ currentChat, currentUser, socket, users, onli
     };
   }, [socket, currentUser._id, scrollToBottom]);
 
-  // 3. Gửi tin nhắn
+  // 3️⃣ Gửi tin nhắn
   const handleFormSubmit = async (message) => {
-    if (!message.trim() || !currentChat) return;
+    if (!message.trim() || !currentChat?._id) return;
 
-    const receiverId = currentChat.members.find(m => m !== currentUser._id);
+    const receiverId = currentChat.members.find(
+      (m) => m !== currentUser._id
+    );
 
-    // Phát socket kèm theo chatRoomId để bên kia lọc được
+    // emit socket
     socket.current.emit("sendMessage", {
       senderId: currentUser._id,
       receiverId,
@@ -79,25 +111,32 @@ export default function ChatRoom({ currentChat, currentUser, socket, users, onli
       message,
     });
 
-    const res = await sendMessage({
-      chatRoomId: currentChat._id,
-      sender: currentUser._id,
-      message,
-      isRead: false,
-    });
+    try {
+      const res = await sendMessage({
+        chatRoomId: currentChat._id,
+        sender: currentUser._id,
+        message,
+        isRead: false,
+      });
 
-    setMessages((prev) => [...prev, res]);
-    scrollToBottom();
+      setMessages((prev) => [...prev, res]);
+      scrollToBottom();
+    } catch (err) {
+      console.error("Send message error:", err);
+    }
   };
 
-  // Dùng useMemo để Contact không bị render lại mỗi khi gõ phím trong ChatForm
-  const memoizedContact = useMemo(() => (
-    <Contact
-      chatRoom={currentChat}
-      currentUser={currentUser}
-      onlineUsersId={onlineUsersId}
-    />
-  ), [currentChat, onlineUsersId, currentUser]);
+  // memo header
+  const memoizedContact = useMemo(() => {
+    if (!currentChat) return null;
+    return (
+      <Contact
+        chatRoom={currentChat}
+        currentUser={currentUser}
+        onlineUsersId={onlineUsersId}
+      />
+    );
+  }, [currentChat, currentUser, onlineUsersId]);
 
   return (
     <div className="lg:col-span-2 flex flex-col h-[600px] border-l dark:border-gray-700">
@@ -105,14 +144,14 @@ export default function ChatRoom({ currentChat, currentUser, socket, users, onli
         {memoizedContact}
       </div>
 
-      <div 
+      <div
         ref={chatContainerRef}
-        className="flex-1 w-full p-6 overflow-y-auto bg-white dark:bg-gray-900 scroll-smooth"
+        className="flex-1 w-full p-6 overflow-y-auto bg-white dark:bg-gray-900"
       >
         <ul className="space-y-4">
-          {messages.map((msg, index) => (
+          {messages.map((msg) => (
             <Message
-              key={msg._id || index}
+              key={msg._id}
               message={msg}
               self={currentUser._id}
               users={users}

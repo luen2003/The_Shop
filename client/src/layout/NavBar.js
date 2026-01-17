@@ -46,7 +46,7 @@ export const NavBar = ({ socket }) => {
     const handleNewNotification = (data) => {
       // Khi có tin nhắn mới, không dùng Toast nữa mà gọi action để cập nhật lại danh sách trong Dropdown
       dispatch(listNotifications());
-      
+
       // Tùy chọn: Bạn có thể thêm hiệu ứng âm thanh nhỏ tại đây
       // const audio = new Audio('/sounds/notification_ping.mp3');
       // audio.play().catch(e => console.log("Audio play failed", e));
@@ -66,7 +66,7 @@ export const NavBar = ({ socket }) => {
   const handleNotificationClick = (notification) => {
     // Đánh dấu là đã đọc trong Database
     dispatch(markNotificationRead(notification._id));
-    
+
     // Chuyển hướng người dùng đến link liên kết (ví dụ: phòng chat)
     if (notification.link) {
       navigate(notification.link);
@@ -107,32 +107,38 @@ export const NavBar = ({ socket }) => {
                 </Dropdown.Toggle>
 
                 <Dropdown.Menu
+                  className="notification-menu"
                   style={{
                     width: '320px',
                     maxHeight: '400px',
                     overflowY: 'auto',
                   }}
                 >
+
                   {/* Nút đánh dấu tất cả đã đọc */}
                   {unreadCount > 0 && (
                     <>
                       <Dropdown.Item
-                        className="text-center text-primary fw-bold"
+                        className="notification-action text-center fw-bold"
                         onClick={() => dispatch(markAllNotificationsRead())}
                       >
                         <i className="fas fa-check-double me-2"></i>
                         Mark all as read
                       </Dropdown.Item>
+
                       <Dropdown.Divider />
                     </>
                   )}
 
                   {/* Trường hợp không có thông báo nào */}
                   {notifications.length === 0 && (
-                    <Dropdown.Item className="text-center text-muted">
+                    <Dropdown.Item className="notification-empty text-center">
                       Không có thông báo mới
                     </Dropdown.Item>
                   )}
+
+
+
 
                   {/* Hiển thị danh sách thông báo (Bao gồm cả tin nhắn mới từ Socket) */}
                   {notifications.map((n) => (
@@ -151,7 +157,7 @@ export const NavBar = ({ socket }) => {
                         {!n.isRead && <Badge bg="primary" pill>New</Badge>}
                       </div>
                       <small className="text-muted d-block">{n.message}</small>
-                      <div className="text-end text-muted" style={{fontSize: '0.7rem'}}>
+                      <div className="text-end text-muted" style={{ fontSize: '0.7rem' }}>
                         {new Date(n.createdAt).toLocaleTimeString()}
                       </div>
                     </Dropdown.Item>
@@ -171,9 +177,9 @@ export const NavBar = ({ socket }) => {
 
               <Nav.Link>
 
-                  <i className="fas fa-message"></i> Chatbot              </Nav.Link>
+                <i className="fas fa-message"></i> Chatbot              </Nav.Link>
 
-            </LinkContainer> 
+            </LinkContainer>
 
             <LinkContainer to="/cart">
               <Nav.Link>

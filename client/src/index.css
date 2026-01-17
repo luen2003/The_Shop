@@ -132,3 +132,44 @@ li::marker{font-size:0;}
 .dropdown-item .nav-link:hover {
   color: white;
 }
+
+/* Toàn bộ dropdown notification */
+.notification-menu {
+  background-color: #404953 !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Item rỗng */
+.notification-empty {
+  background-color: #404953 !important;
+  color: #ffffff !important;
+  cursor: default;
+  padding: 12px 16px;
+}
+
+/* Tắt hover / active / focus */
+.notification-empty:hover,
+.notification-empty:active,
+.notification-empty:focus {
+  background-color: #404953 !important;
+  color: #ffffff !important;
+}
+
+/* Nếu có divider */
+.notification-menu .dropdown-divider {
+  border-top: 1px solid #404953 !important;
+  margin: 0 !important;
+}
+
+.notification-action {
+  background-color: #212529 !important;
+  color: #4dabf7 !important; /* xanh nhạt dễ đọc */
+  cursor: pointer;
+}
+
+.notification-action:hover,
+.notification-action:focus {
+  background-color: #2c3034 !important; /* tối hơn nền 1 chút */
+  color: #74c0fc !important; /* chữ sáng hơn */
+}

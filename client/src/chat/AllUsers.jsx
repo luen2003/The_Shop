@@ -15,21 +15,29 @@ export default function AllUsers({
   currentUser,
   changeChat,
 }) {
-  const [selectedChat, setSelectedChat] = useState();
+  const [selectedChat, setSelectedChat] = useState(null);
   const [nonContacts, setNonContacts] = useState([]);
   const [contactIds, setContactIds] = useState([]);
   const [showMembersId, setShowMembersId] = useState(null);
 
   const { createChatRoom } = useApi();
 
+  // ================= CONTACT IDS (1–1) =================
   useEffect(() => {
+    if (!chatRooms || !currentUser) return;
+
     const ids = chatRooms
       .filter((r) => !r.isGroup)
-      .map((r) => r.members.find((m) => m !== currentUser._id));
+      .map((r) => r.members.find((m) => m !== currentUser._id))
+      .filter(Boolean);
+
     setContactIds(ids);
   }, [chatRooms, currentUser]);
 
+  // ================= NON CONTACTS =================
   useEffect(() => {
+    if (!users || !currentUser) return;
+
     setNonContacts(
       users.filter(
         (u) => u._id !== currentUser._id && !contactIds.includes(u._id)
@@ -37,7 +45,7 @@ export default function AllUsers({
     );
   }, [users, contactIds, currentUser]);
 
-  // 🔥 UNREAD – ÁP DỤNG CHO CẢ GROUP + CHAT ĐƠN
+  // ================= UNREAD =================
   const hasUnreadMessages = (room) => {
     if (!room.lastMessage) return false;
     return (
@@ -46,6 +54,7 @@ export default function AllUsers({
     );
   };
 
+  // ================= CHANGE CHAT =================
   const changeCurrentChat = (index, chat) => {
     setSelectedChat(index);
 
@@ -65,6 +74,12 @@ export default function AllUsers({
     changeChat(chat);
   };
 
+  // ================= GET USER BY ID =================
+  const getUserName = (userId) => {
+    const user = users.find((u) => u._id === userId);
+    return user?.email || user?.name || "Unknown user";
+  };
+
   return (
     <ul className="overflow-auto h-[30rem]">
       <h2 className="m-2 font-semibold">Chats</h2>
@@ -75,18 +90,23 @@ export default function AllUsers({
           onClick={() => changeCurrentChat(index, room)}
           className={classNames(
             "px-3 py-2 cursor-pointer border-b",
-            index === selectedChat ? "bg-gray-100" : "hover:bg-gray-100",
+            index === selectedChat
+              ? "bg-gray-100"
+              : "hover:bg-gray-100",
             hasUnreadMessages(room) && "font-bold"
           )}
         >
-          <div className="flex justify-between">
+          <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               {room.isGroup && (
                 <span className="text-xs bg-blue-500 text-white px-2 rounded">
                   Group
                 </span>
               )}
-              {room.isGroup ? room.name : (
+
+              {room.isGroup ? (
+                <span>{room.name}</span>
+              ) : (
                 <Contact
                   chatRoom={room}
                   currentUser={currentUser}
@@ -103,19 +123,20 @@ export default function AllUsers({
                     showMembersId === room._id ? null : room._id
                   );
                 }}
-                className="text-xs underline"
+                className="text-xs underline text-blue-600"
               >
                 Members
               </button>
             )}
           </div>
 
+          {/* ===== GROUP MEMBERS ===== */}
           {room.isGroup && showMembersId === room._id && (
-            <div className="ml-6 mt-2 text-xs">
+            <div className="ml-6 mt-2 text-xs text-gray-600 space-y-1">
               {room.members
-                .filter((m) => m !== currentUser._id)
+                .filter((id) => id !== currentUser._id)
                 .map((id) => (
-                  <div key={id}>{id}</div>
+                  <div key={id}>{getUserName(id)}</div>
                 ))}
             </div>
           )}
@@ -123,13 +144,16 @@ export default function AllUsers({
       ))}
 
       <h2 className="m-2 font-semibold">Other Users</h2>
+
       {nonContacts.map((u) => (
         <div
           key={u._id}
-          onClick={() => createChatRoom({
-            senderId: currentUser._id,
-            receiverId: u._id,
-          })}
+          onClick={() =>
+            createChatRoom({
+              senderId: currentUser._id,
+              receiverId: u._id,
+            })
+          }
           className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
         >
           <UserLayout user={u} onlineUsersId={onlineUsersId} />

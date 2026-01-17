@@ -15,14 +15,14 @@ export default function ChatRoom({
   const chatContainerRef = useRef(null);
 
   const currentChatIdRef = useRef(null);
-  const hasAutoScrolledRef = useRef(false); 
+  const hasAutoScrolledRef = useRef(false);
 
   const { getMessagesOfChatRoom, sendMessage } = useApi();
 
   // ================== UPDATE ROOM ==================
   useEffect(() => {
     currentChatIdRef.current = currentChat?._id || null;
-    hasAutoScrolledRef.current = false; // reset khi đổi phòng
+    hasAutoScrolledRef.current = false;
   }, [currentChat?._id]);
 
   // ================== SCROLL ==================
@@ -42,17 +42,21 @@ export default function ChatRoom({
     let mounted = true;
 
     const fetchMessages = async () => {
-      const res = await getMessagesOfChatRoom(currentChat._id);
-      if (!mounted) return;
+      try {
+        const res = await getMessagesOfChatRoom(currentChat._id);
+        if (!mounted) return;
 
-      setMessages(res || []);
+        setMessages(res || []);
 
-      requestAnimationFrame(() => {
-        if (!hasAutoScrolledRef.current) {
-          scrollToBottom();
-          hasAutoScrolledRef.current = true;
-        }
-      });
+        requestAnimationFrame(() => {
+          if (!hasAutoScrolledRef.current) {
+            scrollToBottom();
+            hasAutoScrolledRef.current = true;
+          }
+        });
+      } catch (err) {
+        console.error("Fetch messages error:", err);
+      }
     };
 
     fetchMessages();
@@ -62,7 +66,7 @@ export default function ChatRoom({
     };
   }, [currentChat?._id, getMessagesOfChatRoom, scrollToBottom]);
 
-  // ================== SOCKET ==================
+  // ================== SOCKET RECEIVE ==================
   useEffect(() => {
     if (!socket?.current) return;
 
@@ -80,7 +84,6 @@ export default function ChatRoom({
             createdAt: new Date().toISOString(),
           },
         ]);
-
       }
     };
 
@@ -105,20 +108,40 @@ export default function ChatRoom({
       message,
     });
 
-    const res = await sendMessage({
-      chatRoomId: currentChat._id,
-      sender: currentUser._id,
-      message,
-      isRead: false,
-    });
+    try {
+      const res = await sendMessage({
+        chatRoomId: currentChat._id,
+        sender: currentUser._id,
+        message,
+        isRead: false,
+      });
 
-    setMessages((prev) => [...prev, res]);
-
+      setMessages((prev) => [...prev, res]);
+      scrollToBottom();
+    } catch (err) {
+      console.error("Send message error:", err);
+    }
   };
 
   // ================== HEADER ==================
-  const memoizedContact = useMemo(() => {
+  const memoizedHeader = useMemo(() => {
     if (!currentChat) return null;
+
+    // ✅ GROUP CHAT
+    if (currentChat.isGroup) {
+      return (
+        <div>
+          <h3 className="font-semibold text-lg">
+            {currentChat.name}
+          </h3>
+          <p className="text-xs text-gray-500">
+            {currentChat.members.length} members
+          </p>
+        </div>
+      );
+    }
+
+    // ✅ 1–1 CHAT
     return (
       <Contact
         chatRoom={currentChat}
@@ -130,10 +153,12 @@ export default function ChatRoom({
 
   return (
     <div className="lg:col-span-2 flex flex-col h-[600px] border-l">
+      {/* HEADER */}
       <div className="p-3 border-b bg-white">
-        {memoizedContact}
+        {memoizedHeader}
       </div>
 
+      {/* MESSAGES */}
       <div
         ref={chatContainerRef}
         className="flex-1 p-6 overflow-y-auto bg-white"
@@ -151,7 +176,8 @@ export default function ChatRoom({
         </ul>
       </div>
 
-      <div className="p-3 border-t">
+      {/* INPUT */}
+      <div className="p-3 border-t bg-white">
         <ChatForm handleFormSubmit={handleFormSubmit} />
       </div>
     </div>

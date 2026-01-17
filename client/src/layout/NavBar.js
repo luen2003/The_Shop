@@ -8,17 +8,14 @@ import Badge from 'react-bootstrap/Badge';
 import Dropdown from 'react-bootstrap/Dropdown';
 
 import { logout } from '../actions/userActions';
-// import {
-//   listNotifications,
-//   markNotificationRead,
-// } from '../actions/notificationActions';
 import {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
 } from '../actions/notificationActions';
 
-export const NavBar = () => {
+// Nhận socket từ props (được truyền từ App.js)
+export const NavBar = ({ socket }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
@@ -32,21 +29,48 @@ export const NavBar = () => {
   const notificationList = useSelector((state) => state.notificationList);
   const { notifications = [] } = notificationList;
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  // Tính số lượng chưa đọc để hiển thị Badge số đỏ
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
+  // 1. Fetch danh sách thông báo từ Database khi người dùng đăng nhập
   useEffect(() => {
     if (userInfo) {
       dispatch(listNotifications());
     }
   }, [dispatch, userInfo]);
 
+  // 2. Lắng nghe sự kiện Socket để cập nhật thông báo thời gian thực
+  useEffect(() => {
+    if (!socket?.current || !userInfo) return;
+
+    const handleNewNotification = (data) => {
+      // Khi có tin nhắn mới, không dùng Toast nữa mà gọi action để cập nhật lại danh sách trong Dropdown
+      dispatch(listNotifications());
+      
+      // Tùy chọn: Bạn có thể thêm hiệu ứng âm thanh nhỏ tại đây
+      // const audio = new Audio('/sounds/notification_ping.mp3');
+      // audio.play().catch(e => console.log("Audio play failed", e));
+    };
+
+    socket.current.on("newNotification", handleNewNotification);
+
+    return () => {
+      socket.current.off("newNotification", handleNewNotification);
+    };
+  }, [socket, userInfo, dispatch]);
+
   const logoutHandler = () => {
     dispatch(logout());
   };
 
   const handleNotificationClick = (notification) => {
+    // Đánh dấu là đã đọc trong Database
     dispatch(markNotificationRead(notification._id));
-    navigate(notification.link);
+    
+    // Chuyển hướng người dùng đến link liên kết (ví dụ: phòng chat)
+    if (notification.link) {
+      navigate(notification.link);
+    }
   };
 
   return (
@@ -60,7 +84,7 @@ export const NavBar = () => {
         <Navbar.Collapse>
           <Nav className="ms-auto align-items-center">
 
-            {/* NOTIFICATION */}
+            {/* PHẦN NOTIFICATION CỦA BẠN */}
             {userInfo && (
               <Dropdown align="end" className="me-3">
                 <Dropdown.Toggle
@@ -70,6 +94,7 @@ export const NavBar = () => {
                 >
                   <i className="fas fa-bell"></i> Notification
 
+                  {/* Hiển thị số lượng tin nhắn chưa đọc trên icon chuông */}
                   {unreadCount > 0 && (
                     <Badge
                       bg="danger"
@@ -81,35 +106,6 @@ export const NavBar = () => {
                   )}
                 </Dropdown.Toggle>
 
-                {/* <Dropdown.Menu
-                  style={{
-                    width: '320px',
-                    maxHeight: '400px',
-                    overflowY: 'auto',
-                  }}
-                >
-
-                  {notifications.length === 0 && (
-                    <Dropdown.Item className="text-center text-muted">
-                      Không có thông báo
-                    </Dropdown.Item>
-                  )}
-
-                  {notifications.map((n) => (
-                    <Dropdown.Item
-                      key={n._id}
-                      onClick={() => handleNotificationClick(n)}
-                      style={{
-                        backgroundColor: n.isRead ? '#fff' : '#e7f1ff',
-                        fontWeight: n.isRead ? 'normal' : 'bold',
-                        whiteSpace: 'normal',
-                      }}
-                    >
-                      <div>{n.title}</div>
-                      <small className="text-muted">{n.message}</small>
-                    </Dropdown.Item>
-                  ))}
-                </Dropdown.Menu> */}
                 <Dropdown.Menu
                   style={{
                     width: '320px',
@@ -117,7 +113,7 @@ export const NavBar = () => {
                     overflowY: 'auto',
                   }}
                 >
-                  {/* ✅ MARK ALL AS READ */}
+                  {/* Nút đánh dấu tất cả đã đọc */}
                   {unreadCount > 0 && (
                     <>
                       <Dropdown.Item
@@ -131,14 +127,14 @@ export const NavBar = () => {
                     </>
                   )}
 
-                  {/* EMPTY */}
+                  {/* Trường hợp không có thông báo nào */}
                   {notifications.length === 0 && (
                     <Dropdown.Item className="text-center text-muted">
-                      Không có thông báo
+                      Không có thông báo mới
                     </Dropdown.Item>
                   )}
 
-                  {/* LIST */}
+                  {/* Hiển thị danh sách thông báo (Bao gồm cả tin nhắn mới từ Socket) */}
                   {notifications.map((n) => (
                     <Dropdown.Item
                       key={n._id}
@@ -147,31 +143,38 @@ export const NavBar = () => {
                         backgroundColor: n.isRead ? '#fff' : '#e7f1ff',
                         fontWeight: n.isRead ? 'normal' : 'bold',
                         whiteSpace: 'normal',
+                        borderBottom: '1px solid #eee'
                       }}
                     >
-                      <div>{n.title}</div>
-                      <small className="text-muted">{n.message}</small>
+                      <div className="d-flex justify-content-between">
+                        <span>{n.title}</span>
+                        {!n.isRead && <Badge bg="primary" pill>New</Badge>}
+                      </div>
+                      <small className="text-muted d-block">{n.message}</small>
+                      <div className="text-end text-muted" style={{fontSize: '0.7rem'}}>
+                        {new Date(n.createdAt).toLocaleTimeString()}
+                      </div>
                     </Dropdown.Item>
                   ))}
                 </Dropdown.Menu>
-
               </Dropdown>
             )}
 
-
-            {/* CHAT */}
+            {/* CÁC MENU KHÁC GIỮ NGUYÊN */}
             <LinkContainer to="/chat">
               <Nav.Link>
                 <i className="fas fa-comment"></i> Chat
               </Nav.Link>
             </LinkContainer>
 
-            {/* <LinkContainer to="/chatbot">
-              <Nav.Link>
-                  <i className="fas fa-message"></i> Chatbot              </Nav.Link>
-            </LinkContainer> */}
+            <LinkContainer to="/chatbot">
 
-            {/* CART */}
+              <Nav.Link>
+
+                  <i className="fas fa-message"></i> Chatbot              </Nav.Link>
+
+            </LinkContainer> 
+
             <LinkContainer to="/cart">
               <Nav.Link>
                 <i className="fas fa-shopping-cart"></i>{' '}
@@ -179,27 +182,23 @@ export const NavBar = () => {
               </Nav.Link>
             </LinkContainer>
 
-            {/* DISCOUNTS */}
             <LinkContainer to="/discounts">
               <Nav.Link>
                 <i className="fas fa-tag"></i> Discounts
               </Nav.Link>
             </LinkContainer>
 
-            {/* SELLER */}
             {userInfo?.role === 'seller' && (
               <LinkContainer to="/seller/products">
                 <Nav.Link>My Products</Nav.Link>
               </LinkContainer>
             )}
 
-            {/* ORDERS */}
             {userInfo && (
               <NavDropdown title="Orders">
                 <LinkContainer to="/orders">
                   <NavDropdown.Item>My Orders</NavDropdown.Item>
                 </LinkContainer>
-
                 {userInfo.role === 'seller' && (
                   <LinkContainer to="/seller/orders">
                     <NavDropdown.Item>My Sales</NavDropdown.Item>
@@ -208,7 +207,6 @@ export const NavBar = () => {
               </NavDropdown>
             )}
 
-            {/* USER */}
             {userInfo ? (
               <>
                 <LinkContainer to="/profile">
@@ -224,7 +222,6 @@ export const NavBar = () => {
               </LinkContainer>
             )}
 
-            {/* ADMIN */}
             {userInfo?.isAdmin && (
               <>
                 <LinkContainer to="/admin/userlist">

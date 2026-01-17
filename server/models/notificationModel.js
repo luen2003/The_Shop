@@ -12,16 +12,13 @@ const notificationSchema = mongoose.Schema(
 
     type: {
       type: String,
-      enum: ['order_new', 'order_paid', 'order_delivered'],
+      // Thêm 'new_message' vào enum
+      enum: ['order_new', 'order_paid', 'order_delivered', 'new_message'], 
       required: true,
     },
 
     link: { type: String }, 
-
-    isRead: {
-      type: Boolean,
-      default: false,
-    },
+    isRead: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

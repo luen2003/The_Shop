@@ -199,16 +199,16 @@ const deleteUser = asyncHandler(async (req, res) => {
 // @desc    Get user by ID
 // @route   GET /api/users/:id
 // @access  Private/Admin
-const getUserById = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.params.id).select('-password')
+// const getUserById = asyncHandler(async (req, res) => {
+//   const user = await User.findById(req.params.id).select('-password')
 
-  if (user) {
-    res.json(user)
-  } else {
-    res.status(404)
-    throw new Error('User not found')
-  }
-})
+//   if (user) {
+//     res.json(user)
+//   } else {
+//     res.status(404)
+//     throw new Error('User not found')
+//   }
+// })
 
 // @desc    Update user
 // @route   PUT /api/users/:id
@@ -251,6 +251,29 @@ const getUserPassword = asyncHandler(async (req, res) => {
     throw new Error('User not found');
   }
 });
+
+// export const getUserById = async (req, res) => {
+//   try {
+//     const user = await User.findById(req.params.id).select("-password")
+//     if (!user) {
+//       return res.status(404).json({ message: "User not found" })
+//     }
+//     res.json(user)
+//   } catch (err) {
+//     res.status(500).json({ message: err.message })
+//   }
+// }
+
+const getUserById = asyncHandler(async (req, res) => {
+  const user = await User.findById(req.params.id).select('-password')
+
+  if (!user) {
+    res.status(404)
+    throw new Error('User not found')
+  }
+
+  res.json(user)
+})
 
 
 

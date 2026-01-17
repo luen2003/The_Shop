@@ -40,17 +40,36 @@ export const useApi = () => {
       console.error(e);
     }
   };
+// const getUser = async (userId) => {
+//   const header = createHeader();
 
-  const getUser = async (userId) => {
-    const header = createHeader();
+//   try {
+//     const res = await axios.get(
+//       `${baseURL}/users/chat/${userId}`,
+//       header
+//     );
+//     return res.data;
+//   } catch (e) {
+//     console.error("getUser error:", e);
+//     throw e;
+//   }
+// };
+const getUser = async (userId) => {
+  const header = createHeader()
+  const res = await axios.get(`${baseURL}/users/${userId}`, header)
+  return res.data
+}
 
-    try {
-      const res = await axios.get(`${baseURL}/users/${userId}`, header);
-      return res.data;
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // const getUser = async (userId) => {
+  //   const header = createHeader();
+
+  //   try {
+  //     const res = await axios.get(`${baseURL}/users/${userId}`, header);
+  //     return res.data;
+  //   } catch (e) {
+  //     console.error(e);
+  //   }
+  // };
 
   const getChatRooms = async (userId) => {
     const header = createHeader();

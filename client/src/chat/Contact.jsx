@@ -46,6 +46,7 @@ export default function Contact({ chatRoom, onlineUsersId, currentUser }) {
 
     fetchData();
   }, [chatRoom, currentUser, getUser, getMessagesOfChatRoom]);
+console.log("CONTACT DATA:", contact);
 
   if (chatRoom.isGroup) {
     return (

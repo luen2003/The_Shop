@@ -302,12 +302,16 @@ io.on('connection', (socket) => {
   });
 
   // ===== PRIVATE MESSAGE =====
-  socket.on('sendMessage', ({ senderId, receiverId, message }) => {
+socket.on('sendMessage', ({ senderId, receiverId, chatRoomId, message }) => {
     const receiverSocketId = onlineUsers.get(receiverId?.toString());
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit('getMessage', { senderId, message });
+        io.to(receiverSocketId).emit('getMessage', { 
+            senderId, 
+            message, 
+            chatRoomId 
+        });
     }
-  });
+});
 
   // ===== ROOM MESSAGE =====
   socket.on('sendMessageInRoom', ({ chatRoomId, senderId, message }) => {

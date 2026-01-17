@@ -9,9 +9,9 @@ export default function ChatForm(props) {
   const scrollRef = useRef();
 
   // Scroll to the bottom when a new message is added
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [message]);
+  // useEffect(() => {
+  //   scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  // }, [message]);
 
   const handleEmojiClick = (event, emojiObject) => {
     setMessage((prevMessage) => prevMessage + emojiObject.emoji);

@@ -192,7 +192,9 @@ export default function ChatLayout() {
                   currentUser={currentUser}
                   socket={socket}
                   users={users}
+                  onlineUsersId={onlineUsersId}
                 />
+
               </>
             ) : (
               <Welcome />

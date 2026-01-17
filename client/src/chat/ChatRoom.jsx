@@ -14,59 +14,55 @@ export default function ChatRoom({
   const [messages, setMessages] = useState([]);
   const chatContainerRef = useRef(null);
 
-  // lưu roomId hiện tại để socket không bị stale
   const currentChatIdRef = useRef(null);
+  const hasAutoScrolledRef = useRef(false); 
 
   const { getMessagesOfChatRoom, sendMessage } = useApi();
 
-  // cập nhật ref khi đổi phòng
+  // ================== UPDATE ROOM ==================
   useEffect(() => {
     currentChatIdRef.current = currentChat?._id || null;
+    hasAutoScrolledRef.current = false; // reset khi đổi phòng
   }, [currentChat?._id]);
 
-  // scroll an toàn
+  // ================== SCROLL ==================
   const scrollToBottom = useCallback(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop =
-        chatContainerRef.current.scrollHeight;
-    }
+    const el = chatContainerRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
   }, []);
 
-  // 1️⃣ Fetch messages khi đổi phòng
+  // ================== FETCH MESSAGES ==================
   useEffect(() => {
     if (!currentChat?._id) {
       setMessages([]);
       return;
     }
 
-    let isMounted = true;
+    let mounted = true;
 
     const fetchMessages = async () => {
-      try {
-        const res = await getMessagesOfChatRoom(currentChat._id);
-        if (!isMounted) return;
+      const res = await getMessagesOfChatRoom(currentChat._id);
+      if (!mounted) return;
 
-        setMessages(res || []);
+      setMessages(res || []);
 
-        requestAnimationFrame(() => {
-          if (chatContainerRef.current) {
-            chatContainerRef.current.scrollTop =
-              chatContainerRef.current.scrollHeight;
-          }
-        });
-      } catch (err) {
-        console.error("Fetch messages error:", err);
-      }
+      requestAnimationFrame(() => {
+        if (!hasAutoScrolledRef.current) {
+          scrollToBottom();
+          hasAutoScrolledRef.current = true;
+        }
+      });
     };
 
     fetchMessages();
 
     return () => {
-      isMounted = false;
+      mounted = false;
     };
-  }, [currentChat?._id, getMessagesOfChatRoom]);
+  }, [currentChat?._id, getMessagesOfChatRoom, scrollToBottom]);
 
-  // 2️⃣ Socket nhận tin nhắn
+  // ================== SOCKET ==================
   useEffect(() => {
     if (!socket?.current) return;
 
@@ -85,7 +81,6 @@ export default function ChatRoom({
           },
         ]);
 
-        setTimeout(scrollToBottom, 30);
       }
     };
 
@@ -93,9 +88,9 @@ export default function ChatRoom({
     return () => {
       socket.current.off("getMessage", handleGetMessage);
     };
-  }, [socket, currentUser._id, scrollToBottom]);
+  }, [socket, currentUser._id]);
 
-  // 3️⃣ Gửi tin nhắn
+  // ================== SEND MESSAGE ==================
   const handleFormSubmit = async (message) => {
     if (!message.trim() || !currentChat?._id) return;
 
@@ -103,7 +98,6 @@ export default function ChatRoom({
       (m) => m !== currentUser._id
     );
 
-    // emit socket
     socket.current.emit("sendMessage", {
       senderId: currentUser._id,
       receiverId,
@@ -111,22 +105,18 @@ export default function ChatRoom({
       message,
     });
 
-    try {
-      const res = await sendMessage({
-        chatRoomId: currentChat._id,
-        sender: currentUser._id,
-        message,
-        isRead: false,
-      });
+    const res = await sendMessage({
+      chatRoomId: currentChat._id,
+      sender: currentUser._id,
+      message,
+      isRead: false,
+    });
 
-      setMessages((prev) => [...prev, res]);
-      scrollToBottom();
-    } catch (err) {
-      console.error("Send message error:", err);
-    }
+    setMessages((prev) => [...prev, res]);
+
   };
 
-  // memo header
+  // ================== HEADER ==================
   const memoizedContact = useMemo(() => {
     if (!currentChat) return null;
     return (
@@ -139,14 +129,14 @@ export default function ChatRoom({
   }, [currentChat, currentUser, onlineUsersId]);
 
   return (
-    <div className="lg:col-span-2 flex flex-col h-[600px] border-l dark:border-gray-700">
-      <div className="p-3 bg-white border-b dark:bg-gray-900 dark:border-gray-700">
+    <div className="lg:col-span-2 flex flex-col h-[600px] border-l">
+      <div className="p-3 border-b bg-white">
         {memoizedContact}
       </div>
 
       <div
         ref={chatContainerRef}
-        className="flex-1 w-full p-6 overflow-y-auto bg-white dark:bg-gray-900"
+        className="flex-1 p-6 overflow-y-auto bg-white"
       >
         <ul className="space-y-4">
           {messages.map((msg) => (
@@ -161,7 +151,7 @@ export default function ChatRoom({
         </ul>
       </div>
 
-      <div className="p-3 border-t dark:border-gray-700">
+      <div className="p-3 border-t">
         <ChatForm handleFormSubmit={handleFormSubmit} />
       </div>
     </div>

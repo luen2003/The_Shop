@@ -281,10 +281,20 @@ io.on('connection', (socket) => {
 
   global.chatSocket = socket;
 
+  // socket.on("addUser", (userId) => {
+  //   onlineUsers.set(userId, socket.id);
+  //   socket.emit("getUsers", Array.from(onlineUsers));
+  // });
   socket.on("addUser", (userId) => {
-    onlineUsers.set(userId, socket.id);
-    socket.emit("getUsers", Array.from(onlineUsers));
-  });
+  if (!userId) return;
+
+  onlineUsers.set(userId.toString(), socket.id);
+
+  io.emit("getUsers", Array.from(onlineUsers.keys()));
+
+  console.log("ONLINE USERS:", Array.from(onlineUsers.keys()));
+});
+
 
   // ===== JOIN ROOM =====
   socket.on('joinRoom', (roomId) => {

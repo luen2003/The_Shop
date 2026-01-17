@@ -279,11 +279,11 @@ const removeUserBySocketId = (socketId) => {
 io.on('connection', (socket) => {
   console.log('Socket connected:', socket.id);
 
-  // ===== ADD USER =====
-  socket.on('addUser', (userId) => {
-    if (!userId) return;
-    onlineUsers.set(userId.toString(), socket.id);
-    io.emit('getUsers', Array.from(onlineUsers.keys()));
+  global.chatSocket = socket;
+
+  socket.on("addUser", (userId) => {
+    onlineUsers.set(userId, socket.id);
+    socket.emit("getUsers", Array.from(onlineUsers));
   });
 
   // ===== JOIN ROOM =====

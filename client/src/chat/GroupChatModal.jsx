@@ -1,13 +1,20 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useApi } from "../services/ChatService";
 
 export default function GroupChatModal({ users, currentUser, onClose, onCreated }) {
   const [name, setName] = useState("");
   const [selected, setSelected] = useState([]);
+  // Thêm state để lưu từ khóa tìm kiếm
+  const [searchTerm, setSearchTerm] = useState(""); 
   const { createChatRoom } = useApi();
 
-  // Lọc bỏ currentUser khỏi danh sách chọn
+  // Lọc bỏ currentUser khỏi danh sách
   const filteredUsers = users.filter(u => u._id !== currentUser._id);
+
+  // Lọc tiếp danh sách user dựa trên từ khóa tìm kiếm (không phân biệt chữ hoa chữ thường)
+  const displayedUsers = filteredUsers.filter(u => 
+    u.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const toggleSelect = (userId) => {
     setSelected((prev) =>
@@ -16,12 +23,11 @@ export default function GroupChatModal({ users, currentUser, onClose, onCreated 
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || selected.length < 1) { // chỉ cần chọn thêm ít nhất 1 người
+    if (!name.trim() || selected.length < 1) { 
       alert("Please enter group name and select at least 1 member.");
       return;
     }
     try {
-      // Thêm currentUser._id mặc định vào memberIds
       const memberIds = [currentUser._id, ...selected];
       const res = await createChatRoom({ name, memberIds, isGroup: true });
       onCreated(res);
@@ -39,33 +45,47 @@ export default function GroupChatModal({ users, currentUser, onClose, onCreated 
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Group name"
-          className="border border-gray-300 rounded px-3 py-2 w-full mb-4"
+          className="border border-gray-300 rounded px-3 py-2 w-full mb-4 focus:outline-none focus:border-blue-500"
+        />
+
+        {/* Ô Input dùng để search email */}
+        <input
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search member by email..."
+          className="border border-gray-300 rounded px-3 py-2 w-full mb-2 focus:outline-none focus:border-blue-500"
         />
 
         <div className="max-h-64 overflow-y-auto mb-4 border border-gray-200 rounded p-2">
-          {filteredUsers.map((u) => (
-            <label key={u._id} className="flex items-center mb-2 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selected.includes(u._id)}
-                onChange={() => toggleSelect(u._id)}
-                className="mr-2"
-              />
-              <span>{u.email}</span>
-            </label>
-          ))}
+          {displayedUsers.length > 0 ? (
+            displayedUsers.map((u) => (
+              <label key={u._id} className="flex items-center mb-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(u._id)}
+                  onChange={() => toggleSelect(u._id)}
+                  className="mr-2 cursor-pointer"
+                />
+                <span>{u.email}</span>
+              </label>
+            ))
+          ) : (
+            <div className="text-gray-500 text-center py-2">
+              No users found.
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end space-x-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+            className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 transition-colors"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
           >
             Create Group
           </button>

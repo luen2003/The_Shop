@@ -1,38 +1,83 @@
-import bcrypt from 'bcryptjs';
+import dotenv from 'dotenv'
+import colors from 'colors'
+import bcrypt from 'bcryptjs'
 
-const users = [
-  {
-    name: 'Admin User',
-    email: 'admin@example.com',
-    password: '123456',
-    role: 'seller',
-    isAdmin: true,
-    // Add default discount codes
-    discounts: ['DISCOUNT10', 'DISCOUNT20', 'SALE10'],
-    paypalClientId: 'AfW47Nj0c4k_bHHB5Kn1a0EYKCoe5nBDxG_fcraZiuEoSyxC9IRvBn7kIj6Qkcy7o3lU18TVYZzt9Nid'
-  },
-  {
-    name: 'Jane Street',
-    email: 'jane@example.com',
-    role: 'buyer',
-    password: '123456',
-    // Add default discount codes
-    discounts: ['DISCOUNT10', 'DISCOUNT20', 'SALE10'],
-    paypalClientId: 'AfW47Nj0c4k_bHHB5Kn1a0EYKCoe5nBDxG_fcraZiuEoSyxC9IRvBn7kIj6Qkcy7o3lU18TVYZzt9Nid'
-  },
-];
+import users from './data/users.js'
+import products from './data/products.js'
+import discounts from './data/discounts.js'
 
-// Optional: Seed more users if needed
-/*
-for (let i = 1; i <= 100; i++) {
-  const newUser = {
-    name: `User ${i}`,
-    email: `user${i}@example.com`,
-    password: bcrypt.hashSync('123456', 10),
-    discounts: ['DISCOUNT10', 'DISCOUNT20', 'SALE10'],  // Add default discounts
-  };
-  users.push(newUser);
+import User from './models/userModel.js'
+import Product from './models/productModel.js'
+import Order from './models/orderModel.js'
+import Discount from './models/discountModel.js'
+
+import connectDB from './config/db.js'
+
+dotenv.config()
+connectDB()
+
+const importData = async () => {
+  try {
+    await Order.deleteMany()
+    await Product.deleteMany()
+    await User.deleteMany()
+    await Discount.deleteMany()
+
+    // =========================
+    // 🔥 HASH PASSWORD USERS
+    // =========================
+    const usersWithHashedPassword = users.map((user) => ({
+      ...user,
+      password: bcrypt.hashSync(user.password, 10),
+    }))
+
+    const createdDiscounts = await Discount.insertMany(discounts)
+
+    const discountIds = createdDiscounts.map((d) => d._id)
+
+    // gán discount cho user trước khi insert
+    usersWithHashedPassword[0].discounts = discountIds
+    usersWithHashedPassword[1].discounts = [
+      discountIds[1],
+      discountIds[2],
+    ]
+
+    const createdUsers = await User.insertMany(usersWithHashedPassword)
+
+    const adminUser = createdUsers[0]._id
+
+    const sampleProducts = products.map((p) => ({
+      ...p,
+      user: adminUser,
+    }))
+
+    await Product.insertMany(sampleProducts)
+
+    console.log('DATA IMPORTED SUCCESS'.green.inverse)
+    process.exit()
+  } catch (error) {
+    console.error(error)
+    process.exit(1)
+  }
 }
-*/
 
-export default users;
+const destroyData = async () => {
+  try {
+    await Order.deleteMany()
+    await Product.deleteMany()
+    await User.deleteMany()
+    await Discount.deleteMany()
+
+    console.log('DATA DESTROYED'.red.inverse)
+    process.exit()
+  } catch (error) {
+    console.error(error)
+    process.exit(1)
+  }
+}
+
+if (process.argv[2] === '-d') {
+  destroyData()
+} else {
+  importData()
+}

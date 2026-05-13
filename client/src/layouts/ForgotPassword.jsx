@@ -1,7 +1,7 @@
 import axios from "axios";
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import Message from "../component/Message";
+import Message from "../components/Message";
 
 const ForgotPassword = () => {
     const [resetEmail, setResetEmail] = useState("");

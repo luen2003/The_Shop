@@ -53,7 +53,7 @@ export default function ChatLayout() {
   const handleChatChange = async (chat) => {
     if (!chat?._id) return;
     setCurrentChat(chat);
-    try { await axios.put(`/api/message/mark-as-read/${chat._id}`); } catch {}
+    try { await axios.put(`/api/message/mark-as-read/${chat._id}`); } catch { }
     setChatRooms((prev) =>
       prev.map((room) =>
         room._id === chat._id ? { ...room, lastMessage: room.lastMessage ? { ...room.lastMessage, isRead: true } : room.lastMessage } : room
@@ -62,20 +62,20 @@ export default function ChatLayout() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-white">
-      {/* 1. FIXED HEADER */}
+    <div className="relative flex flex-col min-h-screen bg-white z-10 w-full -mt-4">
       <Header />
 
-      {/* 2. CHAT CONTENT AREA */}
-      <div className="flex-1 flex overflow-hidden relative">
-        
-        {/* LEFT SIDEBAR: Ẩn trên mobile khi đang mở chat */}
+      <div className="flex-1 flex flex-col lg:flex-row w-full">
         <div className={`
-          ${currentChat ? 'hidden lg:flex' : 'flex'} 
-          w-full lg:w-1/3 flex-col border-r h-full overflow-hidden bg-white
-        `}>
-          <div className="p-3 border-b flex gap-2 shrink-0">
+  ${currentChat ? 'hidden lg:flex' : 'flex'} 
+  w-full lg:w-1/3 flex-col border-r bg-white
+  h-[calc(100vh-0px)]
+`}>
+
+          {/* HEADER FIXED (KHÔNG sticky) */}
+          <div className="p-3 border-b flex gap-2 bg-white z-10 shrink-0">
             <SearchUsers handleSearch={setSearchQuery} />
+
             <button
               onClick={() => setShowGroupModal(true)}
               className="bg-blue-600 text-white px-3 py-2 rounded text-sm whitespace-nowrap"
@@ -84,6 +84,7 @@ export default function ChatLayout() {
             </button>
           </div>
 
+          {/* SCROLL AREA */}
           <div className="flex-1 overflow-y-auto">
             <AllUsers
               users={users}
@@ -97,10 +98,10 @@ export default function ChatLayout() {
           </div>
         </div>
 
-        {/* RIGHT CHAT ROOM: Full màn hình trên mobile khi có chat */}
+        {/* RIGHT CHAT ROOM */}
         <div className={`
           ${!currentChat ? 'hidden lg:flex' : 'flex'} 
-          flex-1 h-full overflow-hidden bg-gray-50
+          flex-1 bg-gray-50 flex-col
         `}>
           {currentChat ? (
             <ChatRoom

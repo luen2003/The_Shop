@@ -173,3 +173,9 @@ li::marker{font-size:0;}
   background-color: #2c3034 !important; /* tối hơn nền 1 chút */
   color: #74c0fc !important; /* chữ sáng hơn */
 }
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}

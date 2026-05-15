@@ -6,7 +6,7 @@ import 'bootstrap/dist/css/bootstrap.min.css'
 import './index.css'
 import App from './App'
 import { GoogleOAuthProvider } from '@react-oauth/google';
-
+import '@fortawesome/fontawesome-free/css/all.min.css';
 
 ReactDOM.render(
   <Provider store={store}>

@@ -73,7 +73,7 @@ export default function ChatRoom({
   const isBlocked = iBlockedThem || theyBlockedMe;
 
   const handleBlockUser = async () => {
-    if (window.confirm("Bạn có chắc chắn muốn chặn người dùng này?")) {
+    if (true) {
       try {
         const updatedRoom = await blockChatRoomApi(currentChat._id, currentUser._id);
         setCurrentChat(updatedRoom);
@@ -164,7 +164,7 @@ export default function ChatRoom({
   }, []);
 
   const handleKick = async (memberId) => {
-    if (window.confirm("Bạn có chắc muốn xóa/hủy mời thành viên này?")) {
+    if (true) {
       try {
         await kickMemberApi(currentChat._id, currentUser._id, memberId);
 
@@ -186,7 +186,7 @@ export default function ChatRoom({
   };
 
   const handleDissolve = async () => {
-    if (window.confirm("Bạn có chắc chắn muốn giải tán nhóm vĩnh viễn? Hành động này không thể hoàn tác.")) {
+    if (true) {
       try {
         await dissolveGroupApi(currentChat._id, currentUser._id);
         setChatRooms((prev) => prev.filter((room) => room._id !== currentChat._id));
@@ -198,7 +198,7 @@ export default function ChatRoom({
   };
 
   const handleTransferAdmin = async (newAdminId) => {
-    if (window.confirm("Bạn có chắc chắn muốn chuyển quyền Trưởng nhóm? Bạn sẽ được chuyển xuống làm Phó nhóm.")) {
+    if (true) {
       try {
         await transferAdminApi(currentChat._id, currentUser._id, newAdminId);
         setCurrentChat(prev => {
@@ -226,7 +226,7 @@ export default function ChatRoom({
   };
 
   const handleAddDeputy = async (memberId) => {
-    if (window.confirm("Bạn muốn bổ nhiệm thành viên này làm Phó nhóm?")) {
+    if (true) {
       try {
         await addDeputyApi(currentChat._id, currentUser._id, memberId);
         setCurrentChat(prev => ({ ...prev, deputies: [...(prev.deputies || []), memberId] }));
@@ -240,7 +240,7 @@ export default function ChatRoom({
   };
 
   const handleRemoveDeputy = async (memberId) => {
-    if (window.confirm("Bạn muốn gỡ quyền Phó nhóm của thành viên này?")) {
+    if (true) {
       try {
         await removeDeputyApi(currentChat._id, currentUser._id, memberId);
         setCurrentChat(prev => ({ ...prev, deputies: prev.deputies.filter(id => id !== memberId) }));
@@ -296,7 +296,7 @@ export default function ChatRoom({
   };
 
   const handleRejectInvite = async () => {
-    if (window.confirm("Bạn có chắc muốn từ chối lời mời vào nhóm này?")) {
+    if (true) {
       try {
         const actorString = getUserString(currentUser);
         await handleFormSubmit(`[SYS]: ${actorString} đã từ chối tham gia nhóm.`);
@@ -323,7 +323,7 @@ export default function ChatRoom({
   };
 
   const handleRejectPrivate = async () => {
-    if (window.confirm("Bạn có chắc muốn từ chối và xóa cuộc trò chuyện này?")) {
+    if (true) {
       try {
         await rejectPrivateChatApi(currentChat._id);
         setCurrentChat(null);
@@ -337,7 +337,7 @@ export default function ChatRoom({
   // === THÊM HÀM XỬ LÝ BẬT TẮT QUYỀN CHAT CỦA MEMBER ===
   const handleToggleChatPermission = async (e) => {
     const newStatus = e.target.checked;
-    if (window.confirm(`Bạn muốn ${newStatus ? 'tắt' : 'bật'} tính năng nhắn tin cho thành viên thường?`)) {
+    if (true) {
       try {
         const res = await axios.put('/api/room/group/toggle-chat-permission', {
           roomId: currentChat._id,
@@ -625,7 +625,7 @@ export default function ChatRoom({
                   <div className="mt-3 border-t pt-3">
                     <button
                       onClick={async () => {
-                        if (window.confirm("Bạn có chắc muốn rời nhóm?")) {
+                        if (true) {
                           const actorString = getUserString(currentUser);
                           await handleFormSubmit(`[SYS]: ${actorString} đã rời khỏi nhóm.`);
 

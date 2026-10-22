@@ -60,7 +60,7 @@ const AdminProductList = () => {
 
   // ===== HANDLERS =====
   const deleteHandler = (id) => {
-    if (window.confirm('Are you sure?')) {
+    if (true) {
       dispatch(deleteProduct(id))
     }
   }
